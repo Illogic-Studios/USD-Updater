@@ -1,0 +1,12 @@
+[run]
+source = r:/devmaxime/dev/python/prism/update_assets_USD_dev
+omit = 
+    */*shiboken*/*
+    *signature_bootstrap.py
+    *pyscript
+    */*_test/*
+    debug.py
+    loggingsetup.py
+
+[report]
+ignore_errors = true
