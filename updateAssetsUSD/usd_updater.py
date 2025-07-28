@@ -28,7 +28,7 @@ LOG_DIRECTORY = 'R:/logs/update_usd_logs'
 LOG_CONFIG = os.path.join(os.path.dirname(__file__), "config/logconfig.json")
 
 is_log_setup = loggingsetup.setup_log(
-    logName='update_usd_dev',
+    logName='update_usd',
     logConfigPath=LOG_CONFIG,
     logDirectory=LOG_DIRECTORY,
     with_time=False
@@ -253,7 +253,7 @@ class MainInterface(Qt.QMainWindow):
         mainLayout.addLayout(layerLayout)
         
         self.layerList = LayerList(self)
-        layerLayout.addWidget(self.layerList, 25)
+        layerLayout.addWidget(self.layerList, 33)
         
         self.QTabLayers = Qt.QTabWidget()
         # set stylesheet to prevent prism pipeline overriding it
@@ -264,7 +264,7 @@ class MainInterface(Qt.QMainWindow):
             self.onSelectedLayerChanged
         )
         
-        layerLayout.addWidget(self.QTabLayers, 75)
+        layerLayout.addWidget(self.QTabLayers, 67)
 
         # -------------------------layout des boutton-------------------------
         self.layoutButon = Qt.QHBoxLayout()
@@ -543,6 +543,7 @@ class MainInterface(Qt.QMainWindow):
 
     #---trouve le dernier publish de la scene maya en question---
     def find_lastest_layout_usda(self) -> list[str]:
+        exports_path = []
         if self.openType == "maya":
             logger.debug("---------Fetching current Maya scene path---------")
             scene_path = cmds.file(q=True, sceneName=True)
@@ -552,7 +553,9 @@ class MainInterface(Qt.QMainWindow):
         elif self.openType == "prism":
             logger.debug("---------------Get file from Prism---------------")
             # le chemin que prism va donner 
-            return [self.pathPrism.replace("\\", "/")]
+            scene_path = self.pathPrism
+            exports_path.append(scene_path)
+            # return [self.pathPrism.replace("\\", "/")]
         else:
             logger.warning(
                 f"Error loading USDA file : pas de file scene donné"
@@ -581,7 +584,6 @@ class MainInterface(Qt.QMainWindow):
         export_directory = project_root / sequence / shot / "Export"
         exports_patterns = self.load_exports_names()
         
-        exports_path = []
         for key in exports_patterns:
             logger.debug("Start parsing {key} exports")
             export_names = exports_patterns[key]
