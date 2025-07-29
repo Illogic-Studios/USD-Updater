@@ -1,6 +1,6 @@
 
 
-class AssetItem:
+class AssetItem():
     
     
     def __init__(
@@ -16,3 +16,15 @@ class AssetItem:
         self.layer_path = None
         self.can_be_updated = True
         self.should_be_updated = True
+        
+        
+    def __str__(self):
+        asset_item_str = (
+            f"{self.layer_path}:\n"
+            f" - {self.original_path}\n"
+            f" -> {self.updated_path}\n"
+            f" - {self.from_version} -> {self.to_version}\n"
+            f" - Should be updated : {self.should_be_updated}\n"
+            f" - Can be updated : {self.can_be_updated}\n"
+        )
+        return asset_item_str

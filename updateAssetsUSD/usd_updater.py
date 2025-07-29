@@ -472,7 +472,7 @@ class MainInterface(Qt.QMainWindow):
             self,
             "Select USDA File",
             choosePlace,
-            "USD Files (*.usda *.usdc)"
+            "USD Files (*.usd *.usda *.usdc)"
         ) # possibiliter de détécter auto le path
         
         if path:

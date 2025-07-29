@@ -7,7 +7,9 @@ import os
 import re
 
 # package deps
-from .assetitem import AssetItem
+from . import assetitem as at
+import importlib
+importlib.reload(at)
 
 #import USD libs
 try:
@@ -23,7 +25,7 @@ SHOW_LOGS = False
 class USDParser():
     
     def __init__(self, log_func=None):
-        self._assets_to_update: list[AssetItem] = []
+        self._assets_to_update: list[at.AssetItem] = []
         self.__log_func = log_func
         if not self.__log_func:
             self.__log_func = print
@@ -31,11 +33,11 @@ class USDParser():
         self._enable_update = True
             
             
-    def get_assets_to_update(self) -> list[AssetItem]:
+    def get_assets_to_update(self) -> list[at.AssetItem]:
         return list(self._assets_to_update)
     
     
-    def set_assets_to_update(self, assets_to_update:list[AssetItem]):
+    def set_assets_to_update(self, assets_to_update:list[at.AssetItem]):
         self._assets_to_update = assets_to_update
 
 
@@ -72,13 +74,13 @@ class USDParser():
                 return relative_to_layer_path
             
     
-    def _add_item_list_once(self, item: AssetItem):
+    def _add_item_list_once(self, item: at.AssetItem):
         # add item to update list if new
         if (item not in self._assets_to_update):
             self._assets_to_update.append(item)
         
     
-    def _add_item_list_abs(self, item: AssetItem):
+    def _add_item_list_abs(self, item: at.AssetItem):
         # add item to update list if new and absolute
         if (item not in self._assets_to_update
             and os.path.isabs(item.original_path)):
@@ -98,7 +100,7 @@ class USDParser():
         
         # create item
         relative_path = Path(*resolved_path.parts[1:])
-        item = AssetItem(
+        item = at.AssetItem(
             assetPathProcessed,
             relative_path.as_posix(),
             None,
@@ -378,7 +380,7 @@ class USDParser():
             )
             if fullmatch:
                 latest_path = f"@{match.group('base')}/{latest_str}/{fname}@"
-                return AssetItem(
+                return at.AssetItem(
                     original_path,
                     latest_path,
                     current_version,
