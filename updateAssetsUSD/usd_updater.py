@@ -539,6 +539,37 @@ class MainInterface(Qt.QMainWindow):
         except Exception as e:
             logger.warning(e)
             return {"layout": default_layouts}
+    
+    
+    def get_path_from_houdini_node(self):
+        nodes = hou.selectedNodes()
+        if not nodes:
+            self.log("No node selected, could not parse usd export path")
+            return ''
+        node: hou.LopNode = nodes[0]
+        if node.type().name() == 'prism::LOP_Import::1.0':
+            try:
+                source_parm: hou.Parm = node.parm('filepath')
+                source_path = source_parm.eval()
+                return source_path
+            except Exception as e:
+                logger.warning(
+                    'Could not find file path in'
+                    f' parm of node {node.name()}'
+                )
+        stage: Usd.Stage = node.stage()
+        try:
+            prism_metadata = stage.GetPrimAtPath('/prism_metadata')
+            source_attribute = prism_metadata.GetAttribute('prism_sources')
+            source_path = source_attribute.Get()[0]
+            return source_path
+        except Exception as e:
+            self.log(
+                "Warning : Could not found usd"
+                f" export from node {node.name()}"
+            )
+            logger.warning(e)
+            return ''
         
 
     #---trouve le dernier publish de la scene maya en question---
@@ -549,13 +580,20 @@ class MainInterface(Qt.QMainWindow):
             scene_path = cmds.file(q=True, sceneName=True)
         elif self.openType == "houdini":
             logger.debug("---------Fetching current Maya scene path---------")
-            scene_path = hou.hipFile.path()
+            scene_path = self.get_path_from_houdini_node()
+            if not scene_path:
+                logger.debug(
+                    'Did not found path from'
+                    ' node fallback to scenepath'
+                )
+                scene_path = hou.hipFile.path()
+            else:
+                exports_path.append(scene_path)
         elif self.openType == "prism":
             logger.debug("---------------Get file from Prism---------------")
             # le chemin que prism va donner 
             scene_path = self.pathPrism
             exports_path.append(scene_path)
-            # return [self.pathPrism.replace("\\", "/")]
         else:
             logger.warning(
                 f"Error loading USDA file : pas de file scene donné"
