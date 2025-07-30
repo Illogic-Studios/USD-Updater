@@ -586,9 +586,8 @@ class MainInterface(Qt.QMainWindow):
                     'Did not found path from'
                     ' node fallback to scenepath'
                 )
-                scene_path = hou.hipFile.path()
-            else:
-                exports_path.append(scene_path)
+                return []
+                # scene_path = hou.hipFile.path()
         elif self.openType == "prism":
             logger.debug("---------------Get file from Prism---------------")
             # le chemin que prism va donner 
