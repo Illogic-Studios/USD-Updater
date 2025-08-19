@@ -1,6 +1,4 @@
 import unittest
-import os
-import shutil
 from pathlib import Path
 from pxr import UsdUtils
 
@@ -11,6 +9,7 @@ ENVIRONNEMENT_CONTEXT = "R:/devmaxime/environnement/testenv"
 # Use to suppress pxr logs
 DELEGATE = UsdUtils.CoalescingDiagnosticDelegate()
 
+
 class USDParserTest(unittest.TestCase):
     
     
@@ -20,8 +19,16 @@ class USDParserTest(unittest.TestCase):
                 "/sh_010/Export/USD/v017/seq_01-sh_010_USD_v017.usda"
             )
         ).as_posix()
-        UD.startUpdateAssetsUSD('prism', layer_path)
-        pass
+        
+        app = UD.usd_updater.Qt.QApplication()
+        main_window = UD.usd_updater.MainInterface(
+            openType='prism',
+            pathPrism=layer_path,
+            ar_context=None,
+            check_update_only=False,
+            parent=None
+        )
+        
         
         
 

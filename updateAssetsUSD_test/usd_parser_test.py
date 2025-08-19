@@ -9,6 +9,10 @@ import updateAssetsUSD.usd_parser as usd_parser
 
 ENVIRONNEMENT_CONTEXT = "R:/devmaxime/environnement/testenv"
 
+# LOCAL ENVIRONNEMENT (Faster, especially for recursive parse)
+# TODO Need to find a workaround to avoid wasting time on network
+ENVIRONNEMENT_CONTEXT = "C:/Users/m.beldjilali/Documents/environnement/testenv"
+
 # Use to suppress pxr logs
 DELEGATE = UsdUtils.CoalescingDiagnosticDelegate()
 
@@ -16,6 +20,12 @@ class USDParserTest(unittest.TestCase):
     
     
     def test_parse(self):
+        import cProfile
+        import pstats
+        profile = cProfile.Profile()
+        profile.clear()
+        profile.enable()
+        
         layer_path = (Path(ENVIRONNEMENT_CONTEXT) / Path(
                 "Illogic_Training/03_Production/Shots/seq_01"
                 "/sh_010/Export/USD/v017/seq_01-sh_010_USD_v017.usda"
@@ -40,7 +50,14 @@ class USDParserTest(unittest.TestCase):
         self.assertEqual(item.can_be_updated, True)
         self.assertEqual(item.should_be_updated, True)
         
+        profile.disable()
+        stats = pstats.Stats(profile)
+        stats.strip_dirs().sort_stats('cumtime').dump_stats(r"R:\devmaxime\dev\python\prism\USD-Updater\updateAssetsUSD_test\stats.prof")
+        
+
     def test_recursive_parse(self):
+
+
         layer_path = (Path(ENVIRONNEMENT_CONTEXT) / Path(
                 "intermarche/03_Production/Shots/testShot/interiorTestShot"
                 "/Export/USD/v093/testShot-interiorTestShot_USD_v093.usda"
@@ -53,13 +70,15 @@ class USDParserTest(unittest.TestCase):
         usdp.set_assets_to_update([])
         usdp.parse(layer, True)
         
+        
         item_list: list[AssetItem] = usdp.get_assets_to_update()
         self.assertEqual(len(item_list), 9)
         for item in item_list:
             self.assertEqual(item.can_be_updated, False)
         self.assertEqual(item_list[0].from_version, 9)
         self.assertEqual(item_list[0].to_version, 13)
-        
+
+
     def test_update(self):
         layer_path = (Path(ENVIRONNEMENT_CONTEXT) / Path(
                 "Illogic_Training/03_Production/Shots/seq_01/sh_010/Export"

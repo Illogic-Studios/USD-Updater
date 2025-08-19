@@ -16,6 +16,7 @@ import os
 from . import usd_parser
 from .assetitem import AssetItem
 from . import loggingsetup
+from . import usd_check
 
 # TODO DELETE DEBUG PACKAGE
 DEBUG_MODE = False and socket.gethostname() == 'FOX-04'
@@ -181,13 +182,23 @@ class LayerList(Qt.QListWidget):
     def contextMenuEvent(self, event: Qtg.QContextMenuEvent):
         contextmenu = Qt.QMenu(self)
         contextmenu = self.buildMenu(contextmenu)
-        contextmenu.exec(event.globalPos())
+        if hasattr(contextmenu, 'exec'):
+            contextmenu.exec(event.globalPos())
+        elif hasattr(contextmenu, 'exec_'):
+            contextmenu.exec_(event.globalPos())
 
         
 class MainInterface(Qt.QMainWindow):
     
     
-    def __init__(self, openType=None, pathPrism=None, ar_context=None, parent=None):
+    def __init__(
+            self,
+            openType=None,
+            pathPrism=None,
+            ar_context=None,
+            check_update_only=False,
+            parent=None):
+        
         super(MainInterface, self).__init__(parent)
         self.setWindowTitle("USD Updater 1.0")
         self.resize(1200, 800)
@@ -200,6 +211,7 @@ class MainInterface(Qt.QMainWindow):
         self._assetsToUpdate: dict[list[AssetItem]] = {}
         
         # parser informations
+        self.check_update_only = check_update_only
         self._enable_recursion = False
         self._usd_parser = usd_parser.USDParser(self.log)
         if ar_context is not None:
@@ -339,6 +351,10 @@ class MainInterface(Qt.QMainWindow):
         
     def setArContext(self, ar_context: list[str]):
         self._usd_parser.ar_context = ar_context
+
+
+    def isUpdate(self):
+        return self._usd_parser.isUpdate()
 
 
     def getLayer(self, index: int) -> Sdf.Layer | None:
@@ -511,8 +527,6 @@ class MainInterface(Qt.QMainWindow):
         elif current_mode == 1:
             if self.openType == "maya":
                 self.load_maya_work_layer()
-            elif self.openType == "houdini":
-                self.load_houdini_work_layer()
             elif self.openType == "prism":
                 logger.error(
                     "Impossible d'effectuer cette opération dans prism."
@@ -582,7 +596,7 @@ class MainInterface(Qt.QMainWindow):
             logger.debug("---------Fetching current Maya scene path---------")
             scene_path = self.get_path_from_houdini_node()
             if not scene_path:
-                if os.path.exists(self.pathPrism):
+                if os.path.exists(str(self.pathPrism)):
                     scene_path = self.pathPrism
                 else:
                     logger.debug(
@@ -713,49 +727,6 @@ class MainInterface(Qt.QMainWindow):
         return asset_stage
     
 
-    # ---------------------------script for Houdini---------------------------
-    def load_houdini_work_layer(self):
-        # stage = self.get_selected_stageHoudini()
-        stage = None
-        if not stage:
-            self.log("⛔ No valid USD stage selected in houdini.")
-            return
-        try:
-            layer = stage.GetRootLayer()
-            self.parse(layer)
-        except Exception as e:
-            logger.warning(f'Did not get layer or dependencies: {e}')
-            self.log(f'Did not get layer or dependencies: {e}')
-            
-
-    # def get_selected_stageHoudini(self):
-    #     nodes = hou.selectedNodes()
-    #     if not nodes:
-    #         hou.ui.displayMessage(
-    #             text='Please select a node and refresh',
-    #             severity=hou.severityType.Warning)
-    #         return
-    #     node: hou.LopNode = nodes[0]
-    #     stage = node.stage()
-    #     if not self.set_pathFile_houdini():
-    #         return
-    #     return stage
-
-
-    # def set_pathFile_houdini(self):
-    #     scene_name = Path(hou.hipFile.name())
-    #     entity_parts = scene_name.parts[:-4]
-    #     if not entity_parts:
-    #         return False
-    #     entity_path = Path(*entity_parts)
-    #     glob_pattern = entity_path / 'Export/USD/*'
-    #     usd_versions = glob.glob(glob_pattern.as_posix())
-    #     if not usd_versions:
-    #         return False
-    #     self.pathFiles = os.path.join(usd_versions[-1], 'anon.usd')
-    #     return True
-
-
     # --------------------------------for all--------------------------------
     def load_USD(self, usd_path):
         try:
@@ -766,7 +737,11 @@ class MainInterface(Qt.QMainWindow):
             return
         if layer:
             layer.Reload(True)
-            self._usd_parser.parse(layer, self._enable_recursion)
+            self._usd_parser.parse(
+                layer=layer,
+                enable_recursion=self._enable_recursion,
+                check_mode=self.check_update_only
+            )
             assets_to_update = self._usd_parser.get_assets_to_update()
             
             self._assetsToUpdate[layer.identifier] = assets_to_update
@@ -940,12 +915,12 @@ class MainInterface(Qt.QMainWindow):
             
         current_mode = self.updateMode.currentIndex()
         if current_mode == 0:
+            if self.openType == 'houdini':
+                usd_check.checkEveryNodes()
             self.load_USD(current_layer.identifier)
         elif current_mode == 1:
             if self.openType == "maya":
                 self.load_maya_work_layer()
-            elif self.openType == "houdini":
-                self.load_houdini_work_layer()
             elif self.openType == "prism":
                 self.log(
                     "⛔ Impossible défectuer cette option dans prism. "
