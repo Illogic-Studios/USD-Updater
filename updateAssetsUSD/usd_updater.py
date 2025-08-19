@@ -582,12 +582,14 @@ class MainInterface(Qt.QMainWindow):
             logger.debug("---------Fetching current Maya scene path---------")
             scene_path = self.get_path_from_houdini_node()
             if not scene_path:
-                logger.debug(
-                    'Did not found path from'
-                    ' node fallback to scenepath'
-                )
-                return []
-                # scene_path = hou.hipFile.path()
+                if os.path.exists(self.pathPrism):
+                    scene_path = self.pathPrism
+                else:
+                    logger.debug(
+                        'Did not found path from'
+                        ' node fallback to scenepath'
+                    )
+                    return []
         elif self.openType == "prism":
             logger.debug("---------------Get file from Prism---------------")
             # le chemin que prism va donner 
