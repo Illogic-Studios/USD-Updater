@@ -1,7 +1,6 @@
-import cProfile
-import pstats
-
-PROFILER = cProfile.Profile()
+import os
+import shutil
+from pathlib import Path
 
 from pxr import Sdf, UsdUtils
 import updateAssetsUSD.usd_parser as usd_parser
@@ -14,7 +13,7 @@ DELEGATE = UsdUtils.CoalescingDiagnosticDelegate()
 
 def test_parse():
     layer_path = (
-        "i:/intermarche/03_Production/Assets/Environment/river/Export/_layer_mod_mayaLayout/v058/river__layer_mod_mayaLayout_v058.usda.20250729_144917.bak.usda"
+        "updateAssetsUSD_test/river__layer_mod_mayaLayout_v058.usda"
     )
     layer = Sdf.Layer.FindOrOpen(layer_path)
 
@@ -22,22 +21,50 @@ def test_parse():
     usdp.ar_context = ENVIRONNEMENT_CONTEXT
     usdp.set_assets_to_update([])
     
-    PROFILER.enable()
     usdp.parse(layer)
-    PROFILER.disable()
     usdp.update_layer(layer)
     usdp.parse(layer)
     
     return usdp.get_assets_to_update()
 
 
-if __name__ == '__main__':
-    asset_item = test_parse()
+def test_update(self):
+    layer_path = (
+        "R:/devmaxime/environnement/testenv/multiples_refs/multiple_refs.usda"
+    )
+    layer_root, layer_ext = os.path.splitext(layer_path)
+    layer_copy_path = layer_root + "_test_update" + layer_ext
+
+    shutil.copy(layer_path, layer_copy_path)
+    
+    layer = Sdf.Layer.FindOrOpen(layer_copy_path)
+
+    usdp = usd_parser.USDParser()
+    usdp.set_assets_to_update([])
+    usdp.parse(layer)
+    
+    
+    
+    item_list = usdp.get_assets_to_update()
+
     print('.')
-    item = asset_item[0]
+    item = item_list[0]
     print(item.original_path)
     print(item.updated_path)
     print(f"{item.from_version} -> {item.to_version}")
-
-    stats = pstats.Stats(PROFILER)
-    stats.dump_stats('stats.prof')
+    
+    usdp.update_layer(layer)
+    usdp.parse(layer)
+    updated_item_list = usdp.get_assets_to_update()
+    
+    os.remove(layer_copy_path)
+        
+        
+if __name__ == '__main__':
+    # This USD file hold multiples references 
+    # to plantGrass v011 while a v012 exists
+    # Therefore, it will update every singles references
+    layer_path = (
+        "updateAssetsUSD_test/river__layer_mod_mayaLayout_v058.usda"
+    )
+    asset_item = test_update()

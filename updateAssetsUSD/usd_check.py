@@ -56,5 +56,4 @@ if _HAS_HOU:
             for node in selected_nodes:
                 node.setSelected(True)
         PROFILER.profiler.disable()
-        PROFILER.print()
-        PROFILER.dumps_file(r"R:\devmaxime\dev\python\prism\USD-Updater\updateAssetsUSD_test\stats.prof")
+        PROFILER.dumps_file()

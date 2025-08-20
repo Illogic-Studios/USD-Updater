@@ -1,5 +1,10 @@
+import os
+
 import cProfile
 import pstats
+
+_USD_UPDATER_DIR = os.path.dirname(os.path.dirname(__file__))
+_DEFAULT_PROFILE_FILE = os.path.join(_USD_UPDATER_DIR, "stats.prof")
 
 class Profiler():
     
@@ -25,6 +30,6 @@ class Profiler():
         stats.strip_dirs().sort_stats("cumtime").print_stats(20)
 
 
-    def dumps_file(self, filename):
+    def dumps_file(self, filename=_DEFAULT_PROFILE_FILE):
         stats = pstats.Stats(self.profiler)
         stats.strip_dirs().sort_stats("cumtime").dump_stats(filename)
