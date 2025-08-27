@@ -1,0 +1,26 @@
+#usda 1.0
+(
+    defaultPrim = "main"
+)
+
+def "main"
+(
+    references = @./v001/common.usda@
+)
+{
+    def "test1"
+    (
+        references = @./v002/common.usda@
+    )
+    {}
+    def "test2"
+    (
+        references = @./v003/common.usda@
+    )
+    {}
+    def "test3"
+    (
+        references = @./v004/common.usda@
+    )
+    {}
+}

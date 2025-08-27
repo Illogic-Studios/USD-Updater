@@ -1,0 +1,9 @@
+#usda 1.0
+(
+    defaultPrim = "subcommon"
+)
+
+def "subcommon" (
+    references = @../../sub_sub_common/v001/sub_sub_common.usda@
+)
+{}
