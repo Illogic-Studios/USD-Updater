@@ -1,5 +1,5 @@
 [run]
-source = r:/devmaxime/dev/python/prism/update_assets_USD_dev
+source = R:/devmaxime/dev/python/prism/USD-Updater
 omit = 
     */*shiboken*/*
     *signature_bootstrap.py
@@ -7,6 +7,7 @@ omit =
     */*_test/*
     debug.py
     loggingsetup.py
+    benchmark.py
 
 [report]
 ignore_errors = true

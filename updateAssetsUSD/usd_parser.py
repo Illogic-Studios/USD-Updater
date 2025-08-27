@@ -7,7 +7,7 @@ import os
 import re
 
 # package deps
-from .assetitem import AssetItem
+from . import assetitem as at
 
 #import USD libs
 try:
@@ -23,19 +23,22 @@ SHOW_LOGS = False
 class USDParser():
     
     def __init__(self, log_func=None):
-        self._assets_to_update: list[AssetItem] = []
+        self._assets_to_update: list[at.AssetItem] = []
         self.__log_func = log_func
         if not self.__log_func:
             self.__log_func = print
         self.ar_context = ["I:/", "R:/"]
         self._enable_update = True
+        self._isupdate = True
+    
+    def isUpdate(self) -> bool:
+        return bool(self._isupdate)
             
-            
-    def get_assets_to_update(self) -> list[AssetItem]:
+    def get_assets_to_update(self) -> list[at.AssetItem]:
         return list(self._assets_to_update)
     
     
-    def set_assets_to_update(self, assets_to_update:list[AssetItem]):
+    def set_assets_to_update(self, assets_to_update:list[at.AssetItem]):
         self._assets_to_update = assets_to_update
 
 
@@ -72,13 +75,13 @@ class USDParser():
                 return relative_to_layer_path
             
     
-    def _add_item_list_once(self, item: AssetItem):
+    def _add_item_list_once(self, item: at.AssetItem):
         # add item to update list if new
         if (item not in self._assets_to_update):
             self._assets_to_update.append(item)
         
     
-    def _add_item_list_abs(self, item: AssetItem):
+    def _add_item_list_abs(self, item: at.AssetItem):
         # add item to update list if new and absolute
         if (item not in self._assets_to_update
             and os.path.isabs(item.original_path)):
@@ -87,8 +90,11 @@ class USDParser():
             
     # -------------------------------Parse USD-------------------------------
         
-    def _parse_filter(self, assetPathProcessed): 
+    def _parse_filter(self, assetPathProcessed):
         logger.debug(f'Parse {assetPathProcessed}')
+        
+        if self.update_check_only and not self._isupdate:
+            return assetPathProcessed
         
         # resolve path from context or layer if needed
         resolved_path = self._resolve_path(assetPathProcessed)
@@ -98,7 +104,7 @@ class USDParser():
         
         # create item
         relative_path = Path(*resolved_path.parts[1:])
-        item = AssetItem(
+        item = at.AssetItem(
             assetPathProcessed,
             relative_path.as_posix(),
             None,
@@ -109,7 +115,7 @@ class USDParser():
         
         # check extension for USD files
         extension = resolved_path.suffix
-        if not extension in ['.usdc', '.usda']:
+        if not extension in ['.usdc', '.usda', ".usd"]: # modif fred ajout de ".usd"
             logger.debug(' - not an USD file')
             self._add_item_list_abs(item)
             return assetPathProcessed
@@ -159,6 +165,7 @@ class USDParser():
             
         # update item to show latest and current version
         logger.debug(' - Can be updated')
+        self._isupdate = False
         if not Path(assetPathProcessed).is_absolute():
             updatedPath = re.sub(
                 r'v\d{2,9}', f'v{latest_match.group(1)}',
@@ -208,11 +215,17 @@ class USDParser():
         self._enable_update = True
         
 
-    def parse(self, layer: Sdf.Layer , enable_recursion: bool=False):
+    def parse(
+            self,
+            layer: Sdf.Layer,
+            enable_recursion: bool=False,
+            check_mode=False):
+
         self._assets_to_update.clear()
         ar_context = Ar.DefaultResolverContext(self.ar_context)
         with Ar.ResolverContextBinder(ar_context):
             self.dirname = Path((layer.realPath)).parent
+            self.update_check_only = check_mode
             if enable_recursion:
                 logger.debug('Start recursive parsing')
                 self._recursive_parse_dependencies(layer)
@@ -234,7 +247,7 @@ class USDParser():
         else:
             asset_path = assetPathProcessed
             
-        if not extension in ['.usdc', '.usda']:
+        if not extension in ['.usdc', '.usda', ".usd"]:
             return asset_path
         
         # check if the assetPathProcessed should be update
@@ -313,7 +326,7 @@ class USDParser():
         self._assets_to_update.clear()
         
         # Simplified: focus only on @...usd[ac]@
-        pattern = r"@[^@]+\.usd[ac]@(?:<[^>]+>)?"  
+        pattern = r"@[^@]+\.usd[ac]?@(?:<[^>]+>)?"  #modif Fred je suis passer de \.usd[ac]@ a -> \.usd[ac]?@ j'ai ajouter un ? pour parser les fichier .usd .usda .usdc
         matches = re.findall(pattern, content, re.IGNORECASE)
         seen = set()
         self._log(f"Found {len(matches)} payload(s)")
@@ -344,7 +357,7 @@ class USDParser():
             r"@(?P<base>.+?/Export/.+?/)"
             r"v(?P<version>\d{3})/"
             r"(?P<asset_name>.+)_.+?_"
-            r"(v\d{3}\.usd[ac])@"
+            r"(v\d{3}\.usd[ac]?)@"
         )
         match = re.match(
             path_pattern,
@@ -372,13 +385,13 @@ class USDParser():
 
         for fname in os.listdir(latest_folder):
             fullmatch = re.fullmatch(
-                f"{re.escape(asset_name)}_.+?_{latest_str}\\.usd[ac]",
+                f"{re.escape(asset_name)}_.+?_{latest_str}\\.usd[ac]?",
                 fname,
                 re.IGNORECASE
             )
             if fullmatch:
                 latest_path = f"@{match.group('base')}/{latest_str}/{fname}@"
-                return AssetItem(
+                return at.AssetItem(
                     original_path,
                     latest_path,
                     current_version,
