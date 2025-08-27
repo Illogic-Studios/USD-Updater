@@ -18,6 +18,12 @@ from .assetitem import AssetItem
 from . import loggingsetup
 from . import usd_check
 
+UD_MODULE_ROOT = os.path.dirname(__file__)
+UD_ROOT = os.path.dirname(UD_MODULE_ROOT)
+
+_ENV_ENABLE_DEBUG = bool(int(os.environ.get("UD_DEBUG", False)))
+_ENV_LOG_DIR = os.environ.get("UD_LOG_DIR", False)
+_ENV_QT_FROM_PRISM = bool(int(os.environ.get("UD_QT_FROM_PRISM", False)))
 
 """
 Debug environnement specification
@@ -28,17 +34,19 @@ work only when debug module is present
 DEV_LIST = [
     'FOX-04'
 ]
-DEBUG_MODE = False and socket.gethostname() in DEV_LIST
-if DEBUG_MODE:
+_DEBUG_MODE = _ENV_ENABLE_DEBUG and socket.gethostname() in DEV_LIST
+if _DEBUG_MODE:
     try:
         from . import debug
     except:
-        DEBUG_MODE = False
+        _DEBUG_MODE = False
 
 
 # Logger setups using logconfig.json parameters
-LOG_DIRECTORY = 'R:/logs/update_usd_logs'
-LOG_CONFIG = os.path.join(os.path.dirname(__file__), "config/logconfig.json")
+LOG_CONFIG = os.path.join(UD_MODULE_ROOT, "config/logconfig.json")
+
+_DEFAULT_LOG_DIR = os.path.join(UD_ROOT, "logs")
+LOG_DIRECTORY = _ENV_LOG_DIR if _ENV_LOG_DIR else _DEFAULT_LOG_DIR
 LOG_ERROR_FILE = os.path.join(LOG_DIRECTORY, "error_log.txt")
 
 is_log_setup = loggingsetup.setup_log(
@@ -83,12 +91,17 @@ def import_qtpy():
 
 # Import qt with qtpy of prism to match any version of qt found
 # https://pypi.org/project/QtPy/
-if import_qtpy():
+if _ENV_QT_FROM_PRISM:
+    if not import_qtpy():
+        logger.error(f'qtpy not found in C:/ILLOGIC_APP/Prism')
+        sys.exit(1)
+        
+try:
     from qtpy import QtWidgets as Qt
     from qtpy import QtCore as Qtc
     from qtpy import QtGui as Qtg
-else:
-    logger.error(f'qtpy not found in C:/ILLOGIC_APP/Prism', file=sys.stderr)
+except ImportError as e:
+    logger.error(str(e))
     sys.exit(1)
     
 
@@ -334,7 +347,7 @@ class MainInterface(Qt.QMainWindow):
             )
             self.layoutAdvOptions.addWidget(self.warningRecursion, 50)
         
-        if DEBUG_MODE:
+        if _DEBUG_MODE:
             self.debugbutton = Qt.QPushButton("DEBUG")
             self.debugbutton.clicked.connect(self.debug)
             self.layoutAdvOptions.addWidget(self.debugbutton)
@@ -355,9 +368,10 @@ class MainInterface(Qt.QMainWindow):
 
 
     def debug(self):
-        if DEBUG_MODE:
+        if _DEBUG_MODE:
             logger.debug('Enable debug mode')
-            debug.debug()
+            debug_log_path = os.path.join(LOG_DIRECTORY, 'debug.log')
+            debug.debug(log_file=debug_log_path)
             debug.debugpy.breakpoint()
             pass
         
@@ -620,6 +634,8 @@ class MainInterface(Qt.QMainWindow):
         elif self.openType == "prism":
             logger.debug("---------------Get file from Prism---------------")
             # le chemin que prism va donner 
+            if not self.pathPrism:
+                return []
             scene_path = self.pathPrism
             exports_path.append(scene_path)
         else:
