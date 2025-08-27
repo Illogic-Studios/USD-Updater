@@ -18,15 +18,28 @@ from .assetitem import AssetItem
 from . import loggingsetup
 from . import usd_check
 
-# TODO DELETE DEBUG PACKAGE
-DEBUG_MODE = False and socket.gethostname() == 'FOX-04'
+
+"""
+Debug environnement specification
+DEV_LIST hold list of machine name that are allowed to debug
+DEBUG_MODE can be set manually and 
+work only when debug module is present
+"""
+DEV_LIST = [
+    'FOX-04'
+]
+DEBUG_MODE = False and socket.gethostname() in DEV_LIST
 if DEBUG_MODE:
-    from . import debug
+    try:
+        from . import debug
+    except:
+        DEBUG_MODE = False
 
 
-# logger setups using logconfig.json parameters
+# Logger setups using logconfig.json parameters
 LOG_DIRECTORY = 'R:/logs/update_usd_logs'
 LOG_CONFIG = os.path.join(os.path.dirname(__file__), "config/logconfig.json")
+LOG_ERROR_FILE = os.path.join(LOG_DIRECTORY, "error_log.txt")
 
 is_log_setup = loggingsetup.setup_log(
     logName='update_usd',
@@ -35,7 +48,7 @@ is_log_setup = loggingsetup.setup_log(
     with_time=False
 )
 if not is_log_setup:
-    with open(r"R:/logs/update_usd_logs/error_log.txt", 'w') as error_log:
+    with open(LOG_ERROR_FILE, 'w') as error_log:
         error_log.write(f'Could not setup log from {LOG_CONFIG}')
 
 logger = logging.getLogger(__name__)
@@ -343,7 +356,7 @@ class MainInterface(Qt.QMainWindow):
 
     def debug(self):
         if DEBUG_MODE:
-            logger.debug('Enter debug mode')
+            logger.debug('Enable debug mode')
             debug.debug()
             debug.debugpy.breakpoint()
             pass
