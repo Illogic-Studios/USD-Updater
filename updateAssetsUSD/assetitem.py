@@ -25,6 +25,6 @@ class AssetItem():
             f" -> {self.updated_path}\n"
             f" - {self.from_version} -> {self.to_version}\n"
             f" - Should be updated : {self.should_be_updated}\n"
-            f" - Can be updated : {self.can_be_updated}"
+            f" - Can be updated : {self.can_be_updated}\n"
         )
         return asset_item_str

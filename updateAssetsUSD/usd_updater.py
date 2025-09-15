@@ -41,6 +41,9 @@ if _DEBUG_MODE:
     except:
         _DEBUG_MODE = False
 
+# logger setups using logconfig.json parameters
+LOG_DIRECTORY = 'R:/logs/update_usd_logs'
+LOG_CONFIG = os.path.join(os.path.dirname(__file__), "config/logconfig.json")
 
 # Logger setups using logconfig.json parameters
 LOG_CONFIG = os.path.join(UD_MODULE_ROOT, "config/logconfig.json")
