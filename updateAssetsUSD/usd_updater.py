@@ -286,6 +286,12 @@ class MainInterface(Qt.QMainWindow):
         self.filePathBtn = Qt.QPushButton("Add Layer...")
         self.filePathBtn.clicked.connect(self.browse_file)
         file_layout.addWidget(self.filePathBtn)
+    
+        if self.openType == "houdini":
+            self.reloadButton = Qt.QPushButton("Reload From Nodes")
+            self.reloadButton.clicked.connect(self.find_USD_file_to_update)
+            file_layout.addWidget(self.reloadButton)
+        
         mainLayout.addLayout(file_layout)
         
         # ---------list de tout ce qu'il faut update dans la stack US---------
@@ -311,22 +317,26 @@ class MainInterface(Qt.QMainWindow):
         self.layoutButon = Qt.QHBoxLayout()
         mainLayout.addLayout(self.layoutButon)
         
-        self.selAllBtm = Qt.QPushButton("Select All")
-        self.selAllBtm.clicked.connect(
+        self.selAllButton = Qt.QPushButton("Select All")
+        self.selAllButton.clicked.connect(
             lambda: self.set_all_checkboxes(True)
         )
-        self.layoutButon.addWidget(self.selAllBtm)
+        self.layoutButon.addWidget(self.selAllButton)
 
-        self.deselAllBtm = Qt.QPushButton("Deselect All")
-        self.deselAllBtm.clicked.connect(
+        self.deselAllButton = Qt.QPushButton("Deselect All")
+        self.deselAllButton.clicked.connect(
             lambda: self.set_all_checkboxes(False)
         )
-        self.layoutButon.addWidget(self.deselAllBtm)
+        self.layoutButon.addWidget(self.deselAllButton)
 
-        self.runBtm = Qt.QPushButton("Update")
-        self.runBtm.clicked.connect(self.run_update)
-        self.layoutButon.addWidget(self.runBtm)
+        self.runButton = Qt.QPushButton("Update")
+        self.runButton.clicked.connect(self.run_update)
+        self.layoutButon.addWidget(self.runButton)
         
+        self.updateAllButton = Qt.QPushButton("Update All")
+        self.updateAllButton.clicked.connect(self.update_all)
+        self.layoutButon.addWidget(self.updateAllButton)
+            
         # --------------------layout des options avancees--------------------
         
         # Enable recursion mode only if Usd Version allow it (24.03)
@@ -492,7 +502,7 @@ class MainInterface(Qt.QMainWindow):
 
 
     def log(self, text):
-        # TODO Ameliorer pour prendre en compte les smileys
+        # TODO Ameliorer pour prendre en compte les emotes
         # et log selon la severité
         self.logBox.append(text)
     
@@ -519,17 +529,8 @@ class MainInterface(Qt.QMainWindow):
             "Select USDA File",
             choosePlace,
             "USD Files (*.usd *.usda *.usdc)"
-        ) # possibiliter de détécter auto le path
-        
-        if path:
-            try:
-                layer = Sdf.Layer.FindOrOpen(path)
-                if layer in self._layers:
-                    return
-            except Exception:
-                return
-            self.USDFileNeedUpdate.setText(path)
-            self.load_USD(path)
+        )
+        self.default_parse(path)
 
 
     def reload_dependencies(self):
@@ -538,22 +539,30 @@ class MainInterface(Qt.QMainWindow):
         
 
     #----find layer on maya/houdini/prism----
+    def default_parse(self, pathfile: str):
+        try:
+            self._pathFiles = self.find_lastest_layout_usda(pathfile)
+            for path in self._pathFiles:
+                logger.debug(f'Start parsing of {path}')
+                if path:
+                    self.log(f"default file: {path}")
+                    self.load_USD(path)
+        except Exception as e:
+            logger.warning(f"Error loading USDA file: {e}")
+            self.log(f"⚠️ Error loading USDA file: {e}")
+    
+    
     def find_USD_file_to_update(self):
         self.clearInterfaceData()
         current_mode = self.updateMode.currentIndex()
 
         if current_mode == 0:
-            try:
-                self._pathFiles = self.find_lastest_layout_usda()
-                for path in self._pathFiles:
-                    logger.debug(f'Start parsing of {path}')
-                    if path:
-                        self.USDFileNeedUpdate.setText(path)
-                        self.log(f"default file: {path}")
-                        self.load_USD(path)
-            except Exception as e:
-                logger.warning(f"Error loading USDA file: {e}")
-                self.log(f"⚠️ Error loading USDA file: {e}")
+            if self.openType == "houdini":
+                usd_paths = self.get_path_from_houdini_node()
+                for path in usd_paths:
+                    self.default_parse(path)
+            else:
+                self.default_parse(self.pathPrism)
         elif current_mode == 1:
             if self.openType == "maya":
                 self.load_maya_work_layer()
@@ -589,45 +598,46 @@ class MainInterface(Qt.QMainWindow):
         nodes = hou.selectedNodes()
         if not nodes:
             self.log("No node selected, could not parse usd export path")
-            return ''
+            return []
         node: hou.LopNode = nodes[0]
-        if node.type().name() == 'prism::LOP_Import::1.0':
+        usd_paths = []
+        for node in nodes:
+            if node.type().name() == 'prism::LOP_Import::1.0':
+                try:
+                    source_parm: hou.Parm = node.parm('filepath')
+                    source_path = source_parm.eval()
+                    usd_paths.append(source_path)
+                except Exception as e:
+                    logger.warning(
+                        'Could not find file path in'
+                        f' parm of node {node.name()}'
+                    )
+            stage: Usd.Stage = node.stage()
             try:
-                source_parm: hou.Parm = node.parm('filepath')
-                source_path = source_parm.eval()
-                return source_path
+                prism_metadata = stage.GetPrimAtPath('/prism_metadata')
+                source_attribute = prism_metadata.GetAttribute('prism_sources')
+                source_path = source_attribute.Get()[0]
+                usd_paths.append(source_path)
             except Exception as e:
-                logger.warning(
-                    'Could not find file path in'
-                    f' parm of node {node.name()}'
+                self.log(
+                    "Warning : Could not found usd"
+                    f" export from node {node.name()}"
                 )
-        stage: Usd.Stage = node.stage()
-        try:
-            prism_metadata = stage.GetPrimAtPath('/prism_metadata')
-            source_attribute = prism_metadata.GetAttribute('prism_sources')
-            source_path = source_attribute.Get()[0]
-            return source_path
-        except Exception as e:
-            self.log(
-                "Warning : Could not found usd"
-                f" export from node {node.name()}"
-            )
-            logger.warning(e)
-            return ''
-        
+                logger.warning(e)
+        return usd_paths        
 
     #---trouve le dernier publish de la scene maya en question---
-    def find_lastest_layout_usda(self) -> list[str]:
+    def find_lastest_layout_usda(self, filepath: str) -> list[str]:
         exports_path = []
         if self.openType == "maya":
             logger.debug("---------Fetching current Maya scene path---------")
             scene_path = cmds.file(q=True, sceneName=True)
         elif self.openType == "houdini":
             logger.debug("---------Fetching current Maya scene path---------")
-            scene_path = self.get_path_from_houdini_node()
+            scene_path = filepath
             if not scene_path:
-                if os.path.exists(str(self.pathPrism)):
-                    scene_path = self.pathPrism
+                if os.path.exists(str(filepath)):
+                    scene_path = filepath
                 else:
                     logger.debug(
                         'Did not found path from'
@@ -637,9 +647,9 @@ class MainInterface(Qt.QMainWindow):
         elif self.openType == "prism":
             logger.debug("---------------Get file from Prism---------------")
             # le chemin que prism va donner 
-            if not self.pathPrism:
+            if not filepath:
                 return []
-            scene_path = self.pathPrism
+            scene_path = filepath
             exports_path.append(scene_path)
         else:
             logger.warning(
@@ -803,6 +813,7 @@ class MainInterface(Qt.QMainWindow):
                 self.add_layer_tab(layer, asset_list)
             is_updated = not len(self._assetsToUpdate[layer.identifier])
             self.setUpdatedLayer(layer, is_updated)
+            
 
     def add_item_list(self, listwidget:AssetListWidget, item: AssetItem):
         
@@ -918,8 +929,57 @@ class MainInterface(Qt.QMainWindow):
         layer_item.setSizeHint(layer_widget.sizeHint())
         
 
-    def run_update(self):
+    def update_all(self):
+        self.logBox.clear()
+        current_mode = self.updateMode.currentIndex()
+
+        for tab_idx in range(self.QTabLayers.count()):
+            current_tab: AssetListWidget = self.QTabLayers.widget(tab_idx)
+            if not isinstance(current_tab, AssetListWidget):
+                continue
+            current_layer = current_tab.layer
+            if not current_tab.can_be_updated:
+                self.log("⛔ Cannot update recursive found dependencies")
+                continue
+            
+            assets_to_update = self._assetsToUpdate[current_layer.identifier]
+            if not (assets_to_update):
+                self.log(f"Already updated: {current_layer.identifier}")
+                continue
+            # Generate timestamp string: YYYYMMDD_HHMMSS
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup = f"{current_layer.realPath}.{timestamp}.bak"
+            
+            shutil.copy2(current_layer.realPath, backup)
+            self.log(f"🗂️ Backup created: {backup}")
         
+            self.log(
+                f"Asset items ready: {len(assets_to_update)}"
+            )
+            self._usd_parser.set_assets_to_update(assets_to_update)
+            self._usd_parser.update_layer(current_layer)
+            current_layer.Reload(True)
+                
+            if current_mode == 0:
+                self.load_USD(current_layer.identifier)
+            elif current_mode == 1:
+                if self.openType == "maya":
+                    self.load_maya_work_layer()
+                elif self.openType == "prism":
+                    self.log(
+                        "⛔ Impossible défectuer cette option dans prism. "
+                        "Valable uniquement dans maya et houdini"
+                    )
+            else:
+                logger.error("Invalid update mode (How ???)")
+                self.log("Invalid update mode (How ???)")
+                continue
+        if current_mode == 0:
+            if self.openType == 'houdini':
+                usd_check.checkEveryNodes()
+                
+
+    def run_update(self):
         self.logBox.clear()
 
         current_layer = self.getCurrentLayer()
@@ -929,7 +989,6 @@ class MainInterface(Qt.QMainWindow):
             self.log("⛔ Cannot update recursive found dependencies")
             return
         
-        # for layer in self._layers:
         # Generate timestamp string: YYYYMMDD_HHMMSS
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup = f"{current_layer.realPath}.{timestamp}.bak"
