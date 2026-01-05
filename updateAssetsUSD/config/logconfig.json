@@ -27,7 +27,7 @@
         }
     },
     "loggers": { 
-        "updateAssetsUSD_dev": {
+        "updateAssetsUSD": {
             "handlers": ["default", "file"],
             "level": "DEBUG",
             "propagate": false

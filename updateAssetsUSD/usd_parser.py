@@ -1,6 +1,8 @@
 
 # standard deps
 from pathlib import Path
+from enum import Enum
+from datetime import datetime
 import logging
 import glob
 import os
@@ -22,6 +24,12 @@ SHOW_LOGS = False
 
 class USDParser():
     
+    
+    class UpdateMode(Enum):
+        OVERWRITE = "Overwrite"
+        NEW_VERSION = "Newversion"
+
+
     def __init__(self, log_func=None):
         self._assets_to_update: list[at.AssetItem] = []
         self.__log_func = log_func
@@ -31,8 +39,10 @@ class USDParser():
         self._enable_update = True
         self._isupdate = True
     
+    
     def isUpdate(self) -> bool:
-        return bool(self._isupdate)
+        return bool(not len(self._assets_to_update))
+    
             
     def get_assets_to_update(self) -> list[at.AssetItem]:
         return list(self._assets_to_update)
@@ -201,6 +211,7 @@ class USDParser():
 
     def _parse_dependencies(self, layer):
         self.previousLayer = layer
+        self._isupdate = True
         UsdUtils.ModifyAssetPaths(layer, self._parse_filter)
         
 
@@ -285,22 +296,90 @@ class USDParser():
             self._log("✅ Nothing to update.")
         self.changed = False
         return depInfos
+    
+    
+    def create_backup(self, layer: Sdf.Layer):
+        # Generate timestamp string: YYYYMMDD_HHMMSS
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup = f"{layer.realPath}.{timestamp}.bak"
+        
+        layer.Export(backup)
+        logger.info(f"Backup created: {backup}")
+        self.__log_func(f"Backup created: {backup}")
 
 
-    def update_layer(self, layer):
-        logger.debug('Updating ...')
-        self.changed = False
-        UsdUtils.ModifyAssetPaths(layer, self._update_filter)
-        if self.changed:
-            layer.Save()
-            logger.debug("Update complete.")
-            self._log("🎉 Update complete.")
+    def create_new_version(self, layer: Sdf.Layer, core):
+        # TODO Handle versioninfo.json
+        project_path = Path(core.projectPath)
+        project_offset = len(project_path.parts)
+        usd_api = core.getPlugin("USD").api
+        layer_path = Path(layer.realPath)
+        if Path(core.projectPath) != Path(*layer_path.parts[:project_offset]):
+            core.changeProject(str(Path(*layer_path.parts[:project_offset])))
+        entity_type = core.paths.getEntityTypeFromPath(
+            path=layer_path.as_posix(),
+        )
+        entity = {
+            "type": entity_type
+        }
+        entity_category = layer_path.parts[project_offset+2]
+        entity_name = layer_path.parts[project_offset+3]
+
+        if entity_type == "asset":
+            entity["asset_path"] = f"{entity_category}/{entity_name}"
+        elif entity_type == "shot":
+            entity["sequence"] = entity_category
+            entity["shot"] = entity_name
         else:
-            logger.debug("Nothing to update.")
-            self._log("✅ Nothing to update.")
-        layer.Save()
-        logger.debug('Update saved')
-        self.changed = False
+            logger.warning(
+                "Failed to parse entity type: "
+                f"{layer_path.as_posix()}"
+            )
+            return
+        
+        layer_directory = layer_path.parts[project_offset+5]
+        if layer_directory == 'USD':
+            new_version_path = usd_api.getNewEntityUsdPath(entity)
+        else:
+            layer_directory = layer_directory.split('_')
+            departement = layer_directory[-2]
+            sublayer = layer_directory[-1]
+            new_version_path = usd_api.getNewSublayerPath(
+                entity,
+                departement,
+                sublayer
+            )
+            
+        new_version_dir = os.path.dirname(new_version_path)
+        os.makedirs(new_version_dir, exist_ok=True)
+        
+        layer.Export(new_version_path)
+        logger.info(f"New version created at {new_version_path}")
+        self.__log_func(f"New version created at {new_version_path}")
+        layer = Sdf.Layer.FindOrOpen(new_version_path)
+        return new_version_path
+    
+
+    def update_layer(self, layer, mode=UpdateMode.NEW_VERSION, core=None):
+        logger.debug('Updating ...')
+        if self.isUpdate():
+            logger.debug("Already updated.")
+            self._log("✅ Already updated.")
+            return
+        if mode == self.UpdateMode.OVERWRITE:
+            self.create_backup(layer)        
+        UsdUtils.ModifyAssetPaths(layer, self._update_filter)
+        new_path = None
+        if mode == self.UpdateMode.NEW_VERSION:
+            new_path = self.create_new_version(layer, core)
+        if (mode != self.UpdateMode.NEW_VERSION 
+            and mode != self.UpdateMode.OVERWRITE):
+            logger.warning("Invalid update mode.")
+            self._log("Invalid update mode. Default to New Version")
+            new_path = self.create_new_version(layer, core)
+        logger.debug("Update complete.")
+        self._log("🎉 Update complete.")
+        return new_path
 
 
     def recursive_update(self, layer):

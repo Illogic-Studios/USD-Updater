@@ -7,3 +7,4 @@ backup
 .coveragerc
 stats.prof
 logs
+updateAssetsUSD_test\Prod_test_ENV

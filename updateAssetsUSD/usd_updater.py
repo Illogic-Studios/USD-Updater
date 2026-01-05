@@ -1,12 +1,10 @@
 
 # standard deps
 from enum import Enum
-from datetime import datetime
 from pathlib import Path
 import subprocess
 import logging
 import socket
-import shutil
 import glob
 import json
 import sys
@@ -23,7 +21,7 @@ UD_ROOT = os.path.dirname(UD_MODULE_ROOT)
 
 _ENV_ENABLE_DEBUG = bool(int(os.environ.get("UD_DEBUG", False)))
 _ENV_LOG_DIR = os.environ.get("UD_LOG_DIR", False)
-_ENV_QT_FROM_PRISM = bool(int(os.environ.get("UD_QT_FROM_PRISM", False)))
+_ENV_QT_FROM_PRISM = bool(int(os.environ.get("UD_QT_FROM_PRISM", True)))
 
 """
 Debug environnement specification
@@ -40,10 +38,6 @@ if _DEBUG_MODE:
         from . import debug
     except:
         _DEBUG_MODE = False
-
-# logger setups using logconfig.json parameters
-LOG_DIRECTORY = 'R:/logs/update_usd_logs'
-LOG_CONFIG = os.path.join(os.path.dirname(__file__), "config/logconfig.json")
 
 # Logger setups using logconfig.json parameters
 LOG_CONFIG = os.path.join(UD_MODULE_ROOT, "config/logconfig.json")
@@ -87,9 +81,9 @@ def import_qtpy():
         return False
     
     if pyside_path not in sys.path:
-        sys.path.append(pyside_path)
+        sys.path.insert(0, pyside_path)
     if path not in sys.path:
-        sys.path.append(path)
+        sys.path.insert(0, path)
     return True
 
 # Import qt with qtpy of prism to match any version of qt found
@@ -111,8 +105,9 @@ except ImportError as e:
 #import USD libs
 try:
     from pxr import Sdf, Usd
-except:
-    pass
+except ImportError as e:
+    logger.error(str(e))
+    sys.exit(1)
 
 #import for maya 
 try:
@@ -128,17 +123,27 @@ try:
 except:
     pass
 
-SCRIPT_DIRECTORY = Path(__file__).parent
-EXPORT_PATHS_JSON = SCRIPT_DIRECTORY / "config/export_paths.json"
+EXPORT_PATHS_JSON = os.path.join(UD_MODULE_ROOT, "config/export_paths.json")
+_PRODUCTION_IDENTIFIER = "03_Production"
 
 class AssetListWidget(Qt.QListWidget):
     
     
-    def __init__(self, parent=None):
+    class LayerType(Enum):
+        CONTAINER = "Container"
+        DEPARTEMENT = "Departement"
+        SUBLAYER = "Sublayer"
+    
+    
+    def __init__(self, dependance=None, parent=None):
         super().__init__(parent)
         self.layer: Sdf.Layer = None
+        self.layer_item = None
         self.can_be_updated = True
-        
+        self.isUpdate = False
+        self.layer_type = self.LayerType.CONTAINER
+        self.dependance = dependance
+
 
 class LayerWidget(Qt.QWidget):
 
@@ -220,10 +225,16 @@ class LayerList(Qt.QListWidget):
 class MainInterface(Qt.QMainWindow):
     
     
+    class SeverityFlag(Enum):
+        WARNING = "⚠️"
+        ERROR = "⛔"
+    
+    
     def __init__(
             self,
             openType=None,
             pathPrism=None,
+            pcore=None,
             ar_context=None,
             check_update_only=False,
             parent=None):
@@ -233,13 +244,16 @@ class MainInterface(Qt.QMainWindow):
         self.resize(1200, 800)
         self.openType = openType
         self.pathPrism = pathPrism
+        self.pcore = pcore
 
         # layers informations
         self._pathFiles: list[str] = []
+        self._hiddenDependencies: list[str] = []
         self._layers: list[Sdf.Layer] = []
         self._assetsToUpdate: dict[list[AssetItem]] = {}
         
         # parser informations
+        self.update_mode = usd_parser.USDParser.UpdateMode.NEW_VERSION
         self.check_update_only = check_update_only
         self._enable_recursion = False
         self._usd_parser = usd_parser.USDParser(self.log)
@@ -254,28 +268,28 @@ class MainInterface(Qt.QMainWindow):
         self.setCentralWidget(Mainwindow)
         mainLayout = Qt.QVBoxLayout(Mainwindow)
 
-        # -----------------mode Update Worklayer ou USDA file-----------------
-        self.updateMode = Qt.QComboBox()
+        # -----------------mode Update Worklayer ou USD file-----------------
+        self.targetMode = Qt.QComboBox()
         if self.openType == 'maya':
-            updateModeItem = [
-                "Update from USDA file",
+            targetModeItem = [
+                "Update from USD file",
                 "Update Current Work Layer"
             ]
         else:
-            updateModeItem = [
-                "Update from USDA file"
+            targetModeItem = [
+                "Update from USD file"
             ]
-        self.updateMode.addItems(updateModeItem)
+        self.targetMode.addItems(targetModeItem)
         
         if self.openType == 'maya':
-            self.updateMode.setCurrentIndex(1)
+            self.targetMode.setCurrentIndex(1)
         else:
-            self.updateMode.setCurrentIndex(0)
+            self.targetMode.setCurrentIndex(0)
             
-        self.updateMode.currentIndexChanged.connect(
+        self.targetMode.currentIndexChanged.connect(
             self.find_USD_file_to_update
         )
-        mainLayout.addWidget(self.updateMode)
+        mainLayout.addWidget(self.targetMode)
         
         # -----------choisir quelle layer d'USD choisir à modiffier-----------
         file_layout = Qt.QHBoxLayout()
@@ -330,7 +344,12 @@ class MainInterface(Qt.QMainWindow):
         self.layoutButon.addWidget(self.deselAllButton)
 
         self.runButton = Qt.QPushButton("Update")
-        self.runButton.clicked.connect(self.run_update)
+        self.runButton.clicked.connect(
+            lambda:
+                self.run_update(
+                    self.QTabLayers.widget(self.QTabLayers.currentIndex())
+                )
+        )
         self.layoutButon.addWidget(self.runButton)
         
         self.updateAllButton = Qt.QPushButton("Update All")
@@ -418,8 +437,10 @@ class MainInterface(Qt.QMainWindow):
         try:
             subprocess.run(command, capture_output=True)
         except Exception as e:
-            self.log(f"Could not open {directory_path} in explorer\n{e}")
-            logger.error(f"Could not open {directory_path} in explorer\n{e}")
+            self.log(
+                f"Could not open {directory_path} in explorer\n{e}",
+                severity=logging.ERROR
+            )
             
 
     def openExternal(self, index_layer: int):
@@ -431,13 +452,14 @@ class MainInterface(Qt.QMainWindow):
             subprocess.run(command, check=True, capture_output=True)        
         except Exception as e:
             appname = os.path.splitext(os.path.basename(external_app))[0]
-            self.log(f"Could not open {file_path} in {appname}\n{e}")
-            logger.error(f"Could not open {file_path} in {appname}\n{e}")
-            
+            self.log(
+                f"Could not open {file_path} in {appname}\n{e}",
+                severity=logging.ERROR
+            )            
 
-    def removeSelectedLayer(self, index_layer: int):
-        layer = self.getLayer(index_layer)
-        if not layer:
+    def removeSelectedLayer(self, layer: Sdf.Layer):
+        index_layer = self.getTabLayer(layer)
+        if index_layer is None:
             return
         try:
             self._layers.remove(layer)
@@ -447,7 +469,9 @@ class MainInterface(Qt.QMainWindow):
             del self._assetsToUpdate[layer.identifier]
         except Exception as e:
             logger.warning(e)
-        self.layerList.takeItem(index_layer)
+        asset_list: AssetListWidget = self.QTabLayers.widget(index_layer)
+        index = self.layerList.indexFromItem(asset_list.layer_item)
+        self.layerList.takeItem(index.row())
         self.QTabLayers.removeTab(index_layer)
 
 
@@ -481,8 +505,9 @@ class MainInterface(Qt.QMainWindow):
             layer_index = self.getTabLayer(layer)
             if layer is None:
                 return
-            layer_item = self.layerList.item(layer_index)
-            widget:LayerWidget = self.layerList.itemWidget(layer_item) 
+            asset_list: AssetListWidget = self.QTabLayers.widget(layer_index)
+            widget:LayerWidget = self.layerList.itemWidget(
+                asset_list.layer_item)
             widget.setUpdated(on)
 
 
@@ -501,10 +526,14 @@ class MainInterface(Qt.QMainWindow):
         self.USDFileNeedUpdate.clear()
 
 
-    def log(self, text):
-        # TODO Ameliorer pour prendre en compte les emotes
-        # et log selon la severité
-        self.logBox.append(text)
+    def log(self, text, severity=logging.INFO):
+        if severity == logging.WARNING:
+            self.logBox.append(f"{self.SeverityFlag.WARNING.value} {text}")
+        elif severity == logging.ERROR:
+            self.logBox.append(f"{self.SeverityFlag.ERROR.value} {text}")
+        else:
+            self.logBox.append(text)
+        logger.log(severity, text)
     
     
     def set_all_checkboxes(self, value: bool):
@@ -526,7 +555,7 @@ class MainInterface(Qt.QMainWindow):
         
         path, _ = Qt.QFileDialog.getOpenFileName(
             self,
-            "Select USDA File",
+            "Select USD File",
             choosePlace,
             "USD Files (*.usd *.usda *.usdc)"
         )
@@ -541,20 +570,28 @@ class MainInterface(Qt.QMainWindow):
     #----find layer on maya/houdini/prism----
     def default_parse(self, pathfile: str):
         try:
-            self._pathFiles = self.find_lastest_layout_usda(pathfile)
+            self._pathFiles = self.find_lastest_layout_usd(pathfile)
+            self._hiddenDependencies = self.getHiddenDependencies(
+                self._pathFiles
+            )
             for path in self._pathFiles:
                 logger.debug(f'Start parsing of {path}')
                 if path:
-                    self.log(f"default file: {path}")
+                    self.log(f"Default file: {path}")
                     self.load_USD(path)
+            for path in self._hiddenDependencies:
+                if path:
+                    self.load_USD(path, True)
         except Exception as e:
-            logger.warning(f"Error loading USDA file: {e}")
-            self.log(f"⚠️ Error loading USDA file: {e}")
+            self.log(
+                f"Error loading USD file: {e}",
+                severity=logging.WARNING
+            )
     
     
     def find_USD_file_to_update(self):
         self.clearInterfaceData()
-        current_mode = self.updateMode.currentIndex()
+        current_mode = self.targetMode.currentIndex()
 
         if current_mode == 0:
             if self.openType == "houdini":
@@ -567,16 +604,54 @@ class MainInterface(Qt.QMainWindow):
             if self.openType == "maya":
                 self.load_maya_work_layer()
             elif self.openType == "prism":
-                logger.error(
-                    "Impossible d'effectuer cette opération dans prism."
-                    " Valable uniquement dans maya et houdini")
                 self.log(
-                    "⛔ Impossible d'effectuer cette opération dans prism."
-                    " Valable uniquement dans maya et houdini")
+                    "Impossible d'effectuer cette opération dans prism."
+                    " Valable uniquement dans maya et houdini",
+                    severity=logging.ERROR
+                )
         else:
-            logger.error("Invalid update mode (How ???)")
-            self.log("Invalid update mode (How ???)")
-            return
+            self.log(
+                "Invalid update mode (How ???)",
+                severity=logging.ERROR
+            )
+
+
+    def getLayerType(self, layer_path: str) -> AssetListWidget.LayerType:
+        layer_path_p = Path(layer_path)
+        production_index = layer_path_p.parts.index(_PRODUCTION_IDENTIFIER)
+        layer_directory = layer_path_p.parts[production_index+5]
+        if layer_directory == 'USD':
+            return AssetListWidget.LayerType.CONTAINER
+        layer_directory = layer_directory.split('_')
+        sublayer = layer_directory[-1]
+        if sublayer == 'master':
+            return AssetListWidget.LayerType.DEPARTEMENT
+        else:
+            return AssetListWidget.LayerType.SUBLAYER
+        
+
+    def getParentLayer(self, layer_path: str) -> str:
+        layer_path_p = Path(layer_path)
+        production_index = layer_path_p.parts.index(_PRODUCTION_IDENTIFIER)
+        layer_directory = layer_path_p.parts[production_index+5]
+        if layer_directory == 'USD':
+            return None
+        else:
+            layer_directory = layer_directory.split('_')
+            departement = layer_directory[-2]
+            sublayer = layer_directory[-1]
+            if sublayer == 'master':
+                layer_directory = 'USD'
+            else:
+                layer_directory = f'_layer_{departement}_master'
+            parts = list(layer_path_p.parts)
+            parts[production_index+5] = layer_directory
+            layer_pattern = Path(*parts[:production_index+6]) / '*' / '*.usd*'
+            layers_list = glob.glob(layer_pattern.as_posix())
+            if not layers_list:
+                return
+            layers_list.sort()
+            return Path(layers_list[-1]).as_posix()
 
 
     def load_exports_names(self):
@@ -620,14 +695,14 @@ class MainInterface(Qt.QMainWindow):
                 usd_paths.append(source_path)
             except Exception as e:
                 self.log(
-                    "Warning : Could not found usd"
-                    f" export from node {node.name()}"
+                    f"Could not found usd export from node {node.name()}",
+                    severity=logging.WARNING
                 )
-                logger.warning(e)
         return usd_paths        
 
+
     #---trouve le dernier publish de la scene maya en question---
-    def find_lastest_layout_usda(self, filepath: str) -> list[str]:
+    def find_lastest_layout_usd(self, filepath: str) -> list[str]:
         exports_path = []
         if self.openType == "maya":
             logger.debug("---------Fetching current Maya scene path---------")
@@ -650,13 +725,11 @@ class MainInterface(Qt.QMainWindow):
             if not filepath:
                 return []
             scene_path = filepath
-            exports_path.append(scene_path)
+            exports_path.append(Path(scene_path).as_posix())
         else:
-            logger.warning(
-                f"Error loading USDA file : pas de file scene donné"
-            )
             self.log(
-                f"⚠️ Error loading USDA file : pas de file scene donné"
+                f"Error loading USD file : pas de file scene donné",
+                severity=logging.WARNING
             )
             return []
         
@@ -669,6 +742,7 @@ class MainInterface(Qt.QMainWindow):
             return []
 
         # I:/Production/03_Production/Shots
+        production_index = scene_path.parts.index(_PRODUCTION_IDENTIFIER)
         project_root = Path(*scene_path.parts[:4])
         sequence = scene_path.parts[4]
         shot = scene_path.parts[5]
@@ -700,15 +774,35 @@ class MainInterface(Qt.QMainWindow):
                 latest = versions[-1]
                 if os.path.exists(latest):
                     logger.debug(f"Found {latest}")
-                    exports_path.append(latest)
+                    exports_path.append(Path(latest).as_posix())
                     break
         return exports_path
+    
+    
+    def getHiddenDependencies(self, exports_path):
+        hidden_depencencies = []
+        for path in exports_path:
+            parent = self.getParentLayer(path)
+            if parent is not None:
+                if (not parent in exports_path
+                    and not parent in hidden_depencencies):
+                    hidden_depencencies.append(parent) 
+                grand_parent = self.getParentLayer(parent)
+                if (grand_parent is not None
+                    and not grand_parent in exports_path
+                    and not grand_parent in hidden_depencencies):
+                    hidden_depencencies.append(grand_parent)
+        return hidden_depencencies
+
 
     # ----------------------------script for Maya----------------------------
     def load_maya_work_layer(self):
         stage = self.get_selected_stageMaya()
         if not stage:
-            self.log("⛔ No valid USD stage selected in Maya.")
+            self.log(
+                "No valid USD stage selected in Maya.",
+                severity=logging.ERROR
+            )
             return
 
         layer = stage.GetEditTarget().GetLayer()
@@ -770,12 +864,14 @@ class MainInterface(Qt.QMainWindow):
     
 
     # --------------------------------for all--------------------------------
-    def load_USD(self, usd_path):
+    def load_USD(self, usd_path: str, hidden=False):
         try:
-            layer = Sdf.Layer.FindOrOpen(usd_path)
+            layer: Sdf.Layer = Sdf.Layer.FindOrOpen(usd_path)
         except Exception as e:
-            logger.warning(f"Error loading layer from file: {e}")
-            self.log(f"⚠️ Error loading layer from file: {e}")
+            self.log(
+                f"Error loading layer from file: {e}",
+                severity=logging.WARNING
+            )
             return
         if layer:
             layer.Reload(True)
@@ -789,30 +885,34 @@ class MainInterface(Qt.QMainWindow):
             self._assetsToUpdate[layer.identifier] = assets_to_update
             
             asset_list = self.build_item_list(assets_to_update)
+            asset_list.layer_type = self.getLayerType(usd_path)
+            dependance = self.getParentLayer(usd_path)
+            asset_list.dependance = dependance
             asset_list.can_be_updated = not self._enable_recursion
             if layer in self._layers:
                 tab = self.getTabLayer(layer)
                 if tab is None:
-                    logger.error(
-                        "Could not find an already existing"
-                        f" tab for {layer.identifier}"
-                    )
                     self.log(
                         "Could not find an already existing"
-                        f" tab for {layer.identifier}"
+                        f" tab for {layer.identifier}",
+                        severity=logging.ERROR
                     )
                     return
                 
+                tab_widget: AssetListWidget = self.QTabLayers.widget(tab)
                 asset_list.layer = layer
+                asset_list.layer_item = tab_widget.layer_item
                 currentTab = self.QTabLayers.currentIndex()
                 self.QTabLayers.removeTab(tab)
                 self.QTabLayers.insertTab(tab, asset_list, f"Layer {tab+1}")
                 self.QTabLayers.setCurrentIndex(currentTab)
             else:
                 self._layers.append(layer)
-                self.add_layer_tab(layer, asset_list)
+                self.add_layer_tab(layer, asset_list, hidden)
             is_updated = not len(self._assetsToUpdate[layer.identifier])
             self.setUpdatedLayer(layer, is_updated)
+            asset_list.isUpdate = is_updated
+            return layer
             
 
     def add_item_list(self, listwidget:AssetListWidget, item: AssetItem):
@@ -907,123 +1007,123 @@ class MainInterface(Qt.QMainWindow):
         return asset_list
         
             
-    def add_layer_tab(self, layer: Sdf.Layer, asset_list: AssetListWidget): 
+    def add_layer_tab(
+            self,
+            layer: Sdf.Layer,
+            asset_list: AssetListWidget,
+            hidden: bool=False): 
         
         asset_list.layer = layer
-        
         tab_number = self.QTabLayers.count()+1
         self.QTabLayers.addTab(asset_list, f"Layer {tab_number}")
-        
-        layer_path = Path(layer.realPath)
+        layer_path = Path(layer.identifier)
         if len(layer_path.parts) < 3:
             layer_text = layer_path.parts[-1]
         else:
             layer_text = (
                 f"<b>{layer_path.parts[-3]}</b>"
                 f"<br> - {layer_path.parts[-1]}"
-            )
+            )   
         layer_widget = LayerWidget(layer_text)
         layer_item = Qt.QListWidgetItem()
+        asset_list.layer_item = layer_item
         self.layerList.addItem(layer_item)
+        layer_item.setHidden(hidden)
         self.layerList.setItemWidget(layer_item, layer_widget)
         layer_item.setSizeHint(layer_widget.sizeHint())
-        
 
+    
     def update_all(self):
         self.logBox.clear()
-        current_mode = self.updateMode.currentIndex()
-
-        for tab_idx in range(self.QTabLayers.count()):
-            current_tab: AssetListWidget = self.QTabLayers.widget(tab_idx)
-            if not isinstance(current_tab, AssetListWidget):
-                continue
-            current_layer = current_tab.layer
-            if not current_tab.can_be_updated:
-                self.log("⛔ Cannot update recursive found dependencies")
-                continue
-            
-            assets_to_update = self._assetsToUpdate[current_layer.identifier]
-            if not (assets_to_update):
-                self.log(f"Already updated: {current_layer.identifier}")
-                continue
-            # Generate timestamp string: YYYYMMDD_HHMMSS
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup = f"{current_layer.realPath}.{timestamp}.bak"
-            
-            shutil.copy2(current_layer.realPath, backup)
-            self.log(f"🗂️ Backup created: {backup}")
         
-            self.log(
-                f"Asset items ready: {len(assets_to_update)}"
+        tabs = [self.QTabLayers.widget(tab_idx) 
+                for tab_idx in range(self.QTabLayers.count())]
+        for tab in tabs:
+            self.run_update(
+                tab,
+                clear_log=False,
+                check_nodes=False
             )
-            self._usd_parser.set_assets_to_update(assets_to_update)
-            self._usd_parser.update_layer(current_layer)
-            current_layer.Reload(True)
-                
-            if current_mode == 0:
-                self.load_USD(current_layer.identifier)
-            elif current_mode == 1:
-                if self.openType == "maya":
-                    self.load_maya_work_layer()
-                elif self.openType == "prism":
-                    self.log(
-                        "⛔ Impossible défectuer cette option dans prism. "
-                        "Valable uniquement dans maya et houdini"
-                    )
-            else:
-                logger.error("Invalid update mode (How ???)")
-                self.log("Invalid update mode (How ???)")
-                continue
+            
+        current_mode = self.targetMode.currentIndex()
         if current_mode == 0:
             if self.openType == 'houdini':
                 usd_check.checkEveryNodes()
-                
-
-    def run_update(self):
-        self.logBox.clear()
-
-        current_layer = self.getCurrentLayer()
+            
+    
+    def run_update(self, tab, clear_log=True, check_nodes=True, clean_tabs=True):
+        if clear_log:
+            self.logBox.clear()
+            
+        if not isinstance(tab, AssetListWidget):
+            self.log("Invalid tab type", severity=logging.ERROR)
+            return
+            
+        current_layer: Sdf.Layer = tab.layer
+        layer_identifier = current_layer.identifier
+        assets_to_update = self._assetsToUpdate[layer_identifier]
         
-        current_tab: AssetListWidget = self.QTabLayers.currentWidget()
-        if not current_tab.can_be_updated:
-            self.log("⛔ Cannot update recursive found dependencies")
+        if not tab.can_be_updated:
+            self.log(
+                "Cannot update recursive found dependencies",
+                severity=logging.WARNING
+            )
+            return
+        if tab.isUpdate or not (assets_to_update):
+            self.log(f"Already updated: {layer_identifier}")
             return
         
-        # Generate timestamp string: YYYYMMDD_HHMMSS
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup = f"{current_layer.realPath}.{timestamp}.bak"
-        
-        shutil.copy2(current_layer.realPath, backup)
-        self.log(f"🗂️ Backup created: {backup}")
-        
-        assets_to_update = self._assetsToUpdate[current_layer.identifier]
-        self.log(
-            f"Asset items ready: {len(assets_to_update)}"
-        )
         self._usd_parser.set_assets_to_update(assets_to_update)
-        self._usd_parser.update_layer(current_layer)
-        current_layer.Reload(True)
+        new_layer = self._usd_parser.update_layer(
+            current_layer,
+            self.update_mode,
+            self.pcore)
+        layer_widget = self.layerList.itemWidget(tab.layer_item)
+        is_hidden = layer_widget.isHidden()
+        
+        if self.update_mode == usd_parser.USDParser.UpdateMode.NEW_VERSION:
+            if new_layer is None:
+                self.log(
+                    "Could not increment version "
+                    f"for : {layer_identifier}",
+                    severity=logging.ERROR
+                )
+                return
+            else:
+                layer_identifier = new_layer
+            if not tab.dependance is None:
+                dependance_layer = self.load_USD(tab.dependance)
+                dependance_index = self.getTabLayer(dependance_layer)
+                dependance_tab = self.QTabLayers.widget(dependance_index)
+                if not dependance_tab is None:
+                    self.run_update(dependance_tab, clear_log=False)
+            if clean_tabs:
+                self.removeSelectedLayer(current_layer)
             
-        current_mode = self.updateMode.currentIndex()
+        current_mode = self.targetMode.currentIndex()
         if current_mode == 0:
-            if self.openType == 'houdini':
+            if check_nodes and self.openType == 'houdini':
                 usd_check.checkEveryNodes()
-            self.load_USD(current_layer.identifier)
+            self.load_USD(layer_identifier, is_hidden)
         elif current_mode == 1:
             if self.openType == "maya":
                 self.load_maya_work_layer()
-            elif self.openType == "prism":
+            else:
                 self.log(
-                    "⛔ Impossible défectuer cette option dans prism. "
-                    "Valable uniquement dans maya et houdini"
+                    "Impossible défectuer cette option dans prism. "
+                    "Valable uniquement dans Maya",
+                    severity=logging.ERROR
                 )
         else:
-            logger.error("Invalid update mode (How ???)")
-            self.log("Invalid update mode (How ???)")
+            self.log("Invalid update mode (How ???)", severity=logging.ERROR)
             return
 
 
-def startUpdateAssetsUSD(openType, tmpfile=None, ar_context=None):    
+def startUpdateAssetsUSD(
+        openType,
+        tmpfile=None,
+        prism_core=None,
+        ar_context=None):    
     instance = None
     if not Qt.QApplication.instance():
         app_start = True 
@@ -1044,6 +1144,7 @@ def startUpdateAssetsUSD(openType, tmpfile=None, ar_context=None):
     my_window = MainInterface(
         openType=openType,
         pathPrism=tmpfile,
+        pcore=prism_core,
         ar_context=ar_context,
         parent=instance
     )

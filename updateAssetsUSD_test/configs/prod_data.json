@@ -1,0 +1,132 @@
+{
+    "prod_name": "test_prod_env",
+    "prod_preset": "R:/pipeline/pipe/prism/defaultProjectPreset",
+    "assets": [
+        {
+            "path": "Characters/Dog",
+            "departments": [
+                {
+                    "name": "mod",
+                    "sublayers": []
+                },
+                {
+                    "name": "anm",
+                    "sublayers": [
+                        "main"
+                    ]
+                },
+                {
+                    "name": "cfx",
+                    "sublayers": [
+                        "groom",
+                        "groomShading"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "Characters/Cat",
+            "departments": [
+                {
+                    "name": "mod",
+                    "sublayers": []
+                },
+                {
+                    "name": "anm",
+                    "sublayers": [
+                        "main"
+                    ]
+                },
+                {
+                    "name": "cfx",
+                    "sublayers": [
+                        "groom",
+                        "groomShading"
+                    ]
+                }
+            ]
+        },
+        {
+            "path": "Props/Table",
+            "departments": [
+                {
+                    "name": "mod",
+                    "sublayers": []
+                }
+            ]
+        },
+        {
+            "path": "Environment/Cabane",
+            "departments": [
+                {
+                    "name": "mod",
+                    "sublayers": [
+                        "mayaLayout"
+                    ]
+                },
+                {
+                    "name": "shd",
+                    "sublayers": [
+                        "main"
+                    ]
+                }
+            ]
+        }
+    ],
+    "shots": [
+        {
+            "sequence": "SQ001",
+            "shot": "SH010",
+            "departments": [
+                {
+                    "name": "set",
+                    "sublayers": [
+                        "main",
+                        "extras"
+                    ]
+                },
+                {
+                    "name": "anm",
+                    "sublayers": [
+                        "main",
+                        "class"
+                    ]
+                },
+                {
+                    "name": "fx",
+                    "sublayers": [
+                        "main",
+                        "layout"
+                    ]
+                }
+            ]
+        },
+        {
+            "sequence": "SQ001",
+            "shot": "SH020",
+            "departments": [
+                {
+                    "name": "set",
+                    "sublayers": [
+                        "main",
+                        "extras"
+                    ]
+                },
+                {
+                    "name": "anm",
+                    "sublayers": [
+                        "main",
+                        "class"
+                    ]
+                },
+                {
+                    "name": "fx",
+                    "sublayers": [
+                        "main",
+                        "layout"
+                    ]
+                }
+            ]
+        }
+    ]
+}

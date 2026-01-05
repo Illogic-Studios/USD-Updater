@@ -38,7 +38,7 @@ if _HAS_HOU:
             path = node.parm('filepath').eval()
             instance = hou.qt.mainWindow()
             updater = usd_updater.MainInterface(
-                openType='houdini',
+                openType='prism',
                 pathPrism=path,
                 ar_context=None,
                 check_update_only=True,

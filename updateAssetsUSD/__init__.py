@@ -14,11 +14,16 @@ def reload_modules():
     importlib.reload(assetitem)
 
 
-def startUpdateAssetsUSD(openType, tmpfile=None, ar_context=None):
+def startUpdateAssetsUSD(
+        openType,
+        tmpfile=None,
+        prism_core=None,
+        ar_context=None):
     usd_updater.startUpdateAssetsUSD(
         openType=openType,
         tmpfile=tmpfile,
-        ar_context=None
+        prism_core=prism_core,
+        ar_context=ar_context
     )
     
 def checkHoudiniImportsUpdates():

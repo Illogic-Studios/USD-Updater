@@ -1,5 +1,6 @@
 import unittest
 import os
+import glob
 import shutil
 from pathlib import Path
 from pxr import Sdf, UsdUtils
@@ -7,12 +8,6 @@ from pxr import Sdf, UsdUtils
 from updateAssetsUSD.assetitem import AssetItem
 import updateAssetsUSD.usd_parser as usd_parser
 
-ENVIRONNEMENT_CONTEXT = "R:/devmaxime/environnement/testenv"
-
-
-# LOCAL ENVIRONNEMENT (Faster, especially for recursive parse)
-# TODO Need to find a workaround to avoid wasting time on network
-ENVIRONNEMENT_CONTEXT = "C:/Users/m.beldjilali/Documents/environnement/testenv"
 ENVIRONNEMENT_CONTEXT = os.path.join(os.path.dirname(__file__), "testenv")
 
 # Use to suppress pxr logs
@@ -85,12 +80,17 @@ class USDParserTest(unittest.TestCase):
         self.assertEqual(item.from_version, 1)
         self.assertEqual(item.to_version, 8)
         
-        usdp.update_layer(layer)
+        usdp.update_layer(
+            layer,
+            mode=usd_parser.USDParser.UpdateMode.OVERWRITE
+        )
         usdp.parse(layer)
         item_list: list[AssetItem] = usdp.get_assets_to_update()
         self.assertEqual(len(item_list), 0)
 
-        os.remove(layer_copy_path)
+        trashs = glob.glob(layer_copy_path+"*")
+        for trash in trashs:
+            os.remove(trash)
         
         
     def test_update_multiples_refs(self):
@@ -110,24 +110,70 @@ class USDParserTest(unittest.TestCase):
         ext_refs = UsdUtils.ExtractExternalReferences(layer.identifier)
         self.assertEqual(len(ext_refs), 3)
         refs = ext_refs[1]
-        self.assertEqual(len(refs), 4)
+        self.assertEqual(len(refs), 5)
         self.assertEqual(refs[0], './v001/common.usda')
         self.assertEqual(refs[1], './v002/common.usda')
         self.assertEqual(refs[2], './v003/common.usda')
         self.assertEqual(refs[3], './v004/common.usda')
+        self.assertEqual(refs[4], './v004/dummy.txt')
 
         usdp = usd_parser.USDParser()
         usdp.parse(layer)
-        usdp.update_layer(layer)
+        usdp.update_layer(
+            layer,
+            mode=usd_parser.USDParser.UpdateMode.OVERWRITE
+        )
         
         new_ext_refs = UsdUtils.ExtractExternalReferences(layer.identifier)
         self.assertEqual(len(new_ext_refs), 3)
         new_refs = new_ext_refs[1]
-        self.assertEqual(len(new_refs), 1)
-        self.assertEqual(new_refs[0], './v008/common.usda')
+        self.assertEqual(len(new_refs), 2)
+        self.assertEqual(new_refs[0], './v004/dummy.txt')
+        self.assertEqual(new_refs[1], './v008/common.usda')
         
-        os.remove(layer_copy_path)
-        
+        trashs = glob.glob(layer_copy_path+"*")
+        for trash in trashs:
+            os.remove(trash)
 
+
+    def test_update_version_up(self):
+        import prism_prod_env_create
+        core = prism_prod_env_create.createEnv()
+        layer_path = (
+            Path(prism_prod_env_create.PROD_PATH)
+            / Path("03_Production/Assets/Characters/Cat")
+            / Path("Export/USD/v006/Cat_USD_v006.usda")
+        ).as_posix()
+        layer = Sdf.Layer.FindOrOpen(layer_path)
+
+        usdp = usd_parser.USDParser()
+        usdp.ar_context = [ENVIRONNEMENT_CONTEXT]
+        usdp.parse(layer)
+        
+        item_list: list[AssetItem] = usdp.get_assets_to_update()
+        item = item_list[0]
+        self.assertEqual(item.from_version, 2)
+        self.assertEqual(item.to_version, 3)
+        
+        usdp.update_layer(
+            layer=layer,
+            mode=usd_parser.USDParser.UpdateMode.NEW_VERSION,
+            core=core
+        )
+        layer_path_up = (
+            Path(prism_prod_env_create.PROD_PATH)
+            / Path("03_Production/Assets/Characters/Cat")
+            / Path("Export/USD/v008/Cat_USD_v008.usda")
+        ).as_posix()
+        self.assertTrue(os.path.exists(layer_path_up))
+        layer_up = Sdf.Layer.FindOrOpen(layer_path_up)
+        
+        usdp.parse(layer_up)
+        item_list: list[AssetItem] = usdp.get_assets_to_update()
+        self.assertEqual(len(item_list), 0)
+
+        prism_prod_env_create.deleteProd()
+            
+            
 if __name__ == '__main__':
     unittest.main()

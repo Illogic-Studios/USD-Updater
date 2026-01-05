@@ -23,4 +23,9 @@ def "main"
         references = @./v004/common.usda@
     )
     {}
+    def "test4"
+    (
+        references = @./v004/dummy.txt@
+    )
+    {}
 }

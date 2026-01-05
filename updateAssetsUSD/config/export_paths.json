@@ -10,5 +10,8 @@
     ],
     "animation": [
         "_layer_anm_class"
+    ],
+    "fx": [
+        "_layer_fx_main"
     ]
 }
