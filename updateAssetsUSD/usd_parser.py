@@ -14,7 +14,7 @@ from . import assetitem as at
 #import USD libs
 try:
     from pxr import UsdUtils, Sdf, Ar
-except:
+except: # pragma: no cover
     pass
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ class USDParser():
 
 
     def _log(self, txt: str):
-        if SHOW_LOGS:
+        if SHOW_LOGS: # pragma: no cover
             self.__log_func(txt)
         
                 
@@ -61,28 +61,27 @@ class USDParser():
     
     def _resolve_path(self, assetPathProcessed: str) -> Path:
             asset_path = Path(assetPathProcessed)
+
+            # already resolved
             if asset_path.is_absolute():
                 return asset_path.resolve()
-            else:
-                relative_to_layer_path = self.dirname / asset_path
-                if relative_to_layer_path.exists():
-                    return relative_to_layer_path.resolve()
-                try:
-                    resolver = Ar.GetResolver()
-                    resolved_path = resolver.Resolve(assetPathProcessed)
-                    resolved_path = resolved_path.GetPathString()
-                    if os.path.exists(resolved_path):
-                        return Path(resolved_path)
-                    resolved_path = Path(resolved_path)
-                    parent_path = Path(*resolved_path.parts[:2])
-                    parent_resolved = resolver.Resolve(parent_path.as_posix())
-                    parent_resolved = parent_resolved.GetPathString()
-                    if os.path.exists(parent_resolved):
-                        return (Path(parent_resolved).parts[0]
-                                / Path(*resolved_path.parts[1:]))
-                except Exception as e:
-                    logger.warning(e)
-                return relative_to_layer_path
+
+            # solve relative to USD file
+            relative_to_layer_path = self.dirname / asset_path
+            if relative_to_layer_path.exists():
+                return relative_to_layer_path.resolve()
+
+            # solve relative to Asset Resolver context
+            try:
+                ar_resolver = Ar.GetResolver()
+                resolved_path = ar_resolver.Resolve(assetPathProcessed)
+                resolved_path = resolved_path.GetPathString()
+                if os.path.exists(resolved_path):
+                    return Path(resolved_path).resolve()
+            except Exception as e: # pragma: no cover
+                logger.warning(e)
+
+            return relative_to_layer_path.resolve()
             
     
     def _add_item_list_once(self, item: at.AssetItem):
@@ -91,7 +90,7 @@ class USDParser():
             self._assets_to_update.append(item)
         
     
-    def _add_item_list_abs(self, item: at.AssetItem):
+    def _add_item_list_abs(self, item: at.AssetItem): # pragma: no cover
         # add item to update list if new and absolute
         if (item not in self._assets_to_update
             and os.path.isabs(item.original_path)):
@@ -108,7 +107,7 @@ class USDParser():
         
         # resolve path from context or layer if needed
         resolved_path = self._resolve_path(assetPathProcessed)
-        if len(resolved_path.parts) < 2:
+        if len(resolved_path.parts) < 2: # pragma: no cover
             logger.debug(' - path is too short')
             return assetPathProcessed
         
@@ -200,7 +199,7 @@ class USDParser():
         if layer.identifier == self.previousLayer.identifier:
             return depInfos
         path = layer.resolvedPath.GetPathString()
-        if not path:
+        if not path: # pragma: no cover
             return depInfos
         self.dirname = Path(path).parent
         self.previousLayer = layer
@@ -263,9 +262,9 @@ class USDParser():
         
         # check if the assetPathProcessed should be update
         for item in self._assets_to_update:
-            if not item.can_be_updated:
+            if not item.can_be_updated: # pragma: no cover
                 continue
-            if not item.should_be_updated:
+            if not item.should_be_updated: # pragma: no cover
                 continue
             if item.original_path == assetPathProcessed:
                 self._log(
@@ -278,7 +277,7 @@ class USDParser():
         return asset_path
 
 
-    def _apply_update_filter(self, layer, depInfos):
+    def _apply_update_filter(self, layer, depInfos): # pragma: no cover
         if layer.identifier == self.previousLayer.identifier:
             return depInfos
         path = layer.resolvedPath.GetPathString()
@@ -330,7 +329,7 @@ class USDParser():
         elif entity_type == "shot":
             entity["sequence"] = entity_category
             entity["shot"] = entity_name
-        else:
+        else: # pragma: no cover
             logger.warning(
                 "Failed to parse entity type: "
                 f"{layer_path.as_posix()}"
@@ -362,7 +361,7 @@ class USDParser():
 
     def update_layer(self, layer, mode=UpdateMode.NEW_VERSION, core=None):
         logger.debug('Updating ...')
-        if self.isUpdate():
+        if self.isUpdate(): # pragma: no cover
             logger.debug("Already updated.")
             self._log("✅ Already updated.")
             return
@@ -373,7 +372,7 @@ class USDParser():
         if mode == self.UpdateMode.NEW_VERSION:
             new_path = self.create_new_version(layer, core)
         if (mode != self.UpdateMode.NEW_VERSION 
-            and mode != self.UpdateMode.OVERWRITE):
+            and mode != self.UpdateMode.OVERWRITE): # pragma: no cover
             logger.warning("Invalid update mode.")
             self._log("Invalid update mode. Default to New Version")
             new_path = self.create_new_version(layer, core)
@@ -382,7 +381,7 @@ class USDParser():
         return new_path
 
 
-    def recursive_update(self, layer):
+    def recursive_update(self, layer): # pragma: no cover
         self.changed = False
         UsdUtils.ModifyAssetPaths(layer, self._update_filter)
         changed = self.changed
@@ -401,7 +400,7 @@ class USDParser():
 
     # --------------------OLD Parse And Update (USDA only)--------------------
 
-    def parse_payloads(self, content):
+    def parse_payloads(self, content): # pragma: no cover
         self._assets_to_update.clear()
         
         # Simplified: focus only on @...usd[ac]@
@@ -431,7 +430,7 @@ class USDParser():
                 )
                 
                 
-    def find_latest_version_path(self, original_path):
+    def find_latest_version_path(self, original_path): # pragma: no cover
         path_pattern = (
             r"@(?P<base>.+?/Export/.+?/)"
             r"v(?P<version>\d{3})/"

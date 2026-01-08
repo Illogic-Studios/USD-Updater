@@ -39,7 +39,7 @@ def getProdDatas(prod_data_path: str):
     return prod_data
 
 
-def initializeUSD(entity: dict, data: dict, usd_api):
+def initializeUSD(entity: dict, data: dict, usd_api, nb_version: int=2):
     usd_api.createEntityUsd(entity=entity)
     departments = data.get("departments", [])
     for department_data in departments:
@@ -53,11 +53,13 @@ def initializeUSD(entity: dict, data: dict, usd_api):
         
         sublayers = department_data.get("sublayers", [])
         for sublayer in sublayers:
-            usd_api.createSublayerLayerForDepartment(
-                entity=entity,
-                department=department_name,
-                sublayer=sublayer
-            )
+            # create at least nb_version for each sublayers
+            for i in range(nb_version):
+                usd_api.createSublayerLayerForDepartment(
+                    entity=entity,
+                    department=department_name,
+                    sublayer=sublayer
+                )
         
         
 def initializeAssets(pcore, assets: dict, usd_api):

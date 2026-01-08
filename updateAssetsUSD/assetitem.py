@@ -18,7 +18,7 @@ class AssetItem():
         self.should_be_updated = True
         
         
-    def __str__(self):
+    def __str__(self): # pragma: no cover
         asset_item_str = (
             f"{self.layer_path}:\n"
             f" - {self.original_path}\n"

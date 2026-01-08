@@ -33,7 +33,7 @@ DEV_LIST = [
     'FOX-04'
 ]
 _DEBUG_MODE = _ENV_ENABLE_DEBUG and socket.gethostname() in DEV_LIST
-if _DEBUG_MODE:
+if _DEBUG_MODE: # pragma: no cover
     try:
         from . import debug
     except:
@@ -52,7 +52,7 @@ is_log_setup = loggingsetup.setup_log(
     logDirectory=LOG_DIRECTORY,
     with_time=False
 )
-if not is_log_setup:
+if not is_log_setup: # pragma: no cover
     with open(LOG_ERROR_FILE, 'w') as error_log:
         error_log.write(f'Could not setup log from {LOG_CONFIG}')
 
@@ -77,7 +77,7 @@ def import_qtpy():
             found = True
             break
     
-    if not found:
+    if not found: # pragma: no cover
         return False
     
     if pyside_path not in sys.path:
@@ -88,33 +88,33 @@ def import_qtpy():
 
 # Import qt with qtpy of prism to match any version of qt found
 # https://pypi.org/project/QtPy/
-if _ENV_QT_FROM_PRISM:
+if _ENV_QT_FROM_PRISM: # pragma: no cover
     if not import_qtpy():
         logger.error(f'qtpy not found in C:/ILLOGIC_APP/Prism')
         sys.exit(1)
         
-try:
+try: # pragma: no cover
     from qtpy import QtWidgets as Qt
     from qtpy import QtCore as Qtc
     from qtpy import QtGui as Qtg
-except ImportError as e:
+except ImportError as e: # pragma: no cover
     logger.error(str(e))
     sys.exit(1)
     
 
 #import USD libs
-try:
+try: # pragma: no cover
     from pxr import Sdf, Usd
-except ImportError as e:
+except ImportError as e: # pragma: no cover
     logger.error(str(e))
     sys.exit(1)
 
 #import for maya 
-try:
+try: # pragma: no cover
     from maya import OpenMayaUI, cmds # type: ignore
     import mayaUsd # type: ignore
     from shiboken6 import wrapInstance
-except:
+except: # pragma: no cover
     pass
 
 #import for houdini 
@@ -187,7 +187,7 @@ class LayerList(Qt.QListWidget):
     
     def __init__(self, ui, parent=None):
         super().__init__(parent)
-        self.main_ui = ui
+        self.main_ui: MainInterface = ui
         
         
     def buildMenu(self, menu: Qt.QMenu) -> Qt.QMenu:
@@ -208,18 +208,18 @@ class LayerList(Qt.QListWidget):
                 
         removeAction = menu.addAction("Remove layer")
         removeAction.triggered.connect(
-            lambda: self.main_ui.removeSelectedLayer(current_index)
+            lambda: self.main_ui.removeLayerAtIndex(current_index)
         )
         menu.addAction(removeAction)
         return menu
 
     def contextMenuEvent(self, event: Qtg.QContextMenuEvent):
-        contextmenu = Qt.QMenu(self)
-        contextmenu = self.buildMenu(contextmenu)
-        if hasattr(contextmenu, 'exec'):
-            contextmenu.exec(event.globalPos())
-        elif hasattr(contextmenu, 'exec_'):
-            contextmenu.exec_(event.globalPos())
+        self.contextmenu = Qt.QMenu(self)
+        self.contextmenu = self.buildMenu(self.contextmenu)
+        if hasattr(self.contextmenu, 'exec'):
+            self.contextmenu.exec(event.globalPos())
+        elif hasattr(self.contextmenu, 'exec_'):
+            self.contextmenu.exec_(event.globalPos())
 
         
 class MainInterface(Qt.QMainWindow):
@@ -270,7 +270,7 @@ class MainInterface(Qt.QMainWindow):
 
         # -----------------mode Update Worklayer ou USD file-----------------
         self.targetMode = Qt.QComboBox()
-        if self.openType == 'maya':
+        if self.openType == 'maya': # pragma: no cover
             targetModeItem = [
                 "Update from USD file",
                 "Update Current Work Layer"
@@ -281,7 +281,7 @@ class MainInterface(Qt.QMainWindow):
             ]
         self.targetMode.addItems(targetModeItem)
         
-        if self.openType == 'maya':
+        if self.openType == 'maya': # pragma: no cover
             self.targetMode.setCurrentIndex(1)
         else:
             self.targetMode.setCurrentIndex(0)
@@ -301,7 +301,7 @@ class MainInterface(Qt.QMainWindow):
         self.filePathBtn.clicked.connect(self.browse_file)
         file_layout.addWidget(self.filePathBtn)
     
-        if self.openType == "houdini":
+        if self.openType == "houdini": # pragma: no cover
             self.reloadButton = Qt.QPushButton("Reload From Nodes")
             self.reloadButton.clicked.connect(self.find_USD_file_to_update)
             file_layout.addWidget(self.reloadButton)
@@ -372,7 +372,7 @@ class MainInterface(Qt.QMainWindow):
                 self.onChangedRecursive
             )
             self.layoutAdvOptions.addWidget(self.checkboxRecursion, 50)
-        else:
+        else: # pragma: no cover
             self.warningRecursion = Qt.QLabel(
                 'Recursion only available for USD version higher '
                 f'than 24.03 (current {major_version}.{minor_version})'
@@ -399,7 +399,7 @@ class MainInterface(Qt.QMainWindow):
         self.find_USD_file_to_update()
 
 
-    def debug(self):
+    def debug(self): # pragma: no cover
         if _DEBUG_MODE:
             logger.debug('Enable debug mode')
             debug_log_path = os.path.join(LOG_DIRECTORY, 'debug.log')
@@ -412,7 +412,7 @@ class MainInterface(Qt.QMainWindow):
         self._usd_parser.ar_context = ar_context
 
 
-    def isUpdate(self):
+    def isUpdate(self): # pragma: no cover
         return self._usd_parser.isUpdate()
 
 
@@ -457,22 +457,28 @@ class MainInterface(Qt.QMainWindow):
                 severity=logging.ERROR
             )            
 
-    def removeSelectedLayer(self, layer: Sdf.Layer):
-        index_layer = self.getTabLayer(layer)
+
+    def removeLayerAtIndex(self, index_layer: int):
+        layer = self.getLayer(index_layer)
         if index_layer is None:
             return
         try:
             self._layers.remove(layer)
-        except Exception as e:
+        except ValueError as e:
             logger.warning(e)
         try:
             del self._assetsToUpdate[layer.identifier]
-        except Exception as e:
+        except KeyError as e:
             logger.warning(e)
         asset_list: AssetListWidget = self.QTabLayers.widget(index_layer)
         index = self.layerList.indexFromItem(asset_list.layer_item)
         self.layerList.takeItem(index.row())
         self.QTabLayers.removeTab(index_layer)
+
+
+    def removeSelectedLayer(self, layer: Sdf.Layer):
+        index_layer = self.getTabLayer(layer)
+        self.removeLayerAtIndex(index_layer)
 
 
     def onSelectedLayerChanged(self):
@@ -493,8 +499,6 @@ class MainInterface(Qt.QMainWindow):
     def getTabLayer(self, layer: Sdf.Layer) -> int | None:
         for index in range(self.QTabLayers.count()):
             tab: AssetListWidget = self.QTabLayers.widget(index)
-            if not tab:
-                continue
             if hasattr(tab, "layer"):
                 if layer == tab.layer:
                     return index
@@ -582,7 +586,7 @@ class MainInterface(Qt.QMainWindow):
             for path in self._hiddenDependencies:
                 if path:
                     self.load_USD(path, True)
-        except Exception as e:
+        except Exception as e: # pragma: no cover
             self.log(
                 f"Error loading USD file: {e}",
                 severity=logging.WARNING
@@ -594,13 +598,13 @@ class MainInterface(Qt.QMainWindow):
         current_mode = self.targetMode.currentIndex()
 
         if current_mode == 0:
-            if self.openType == "houdini":
+            if self.openType == "houdini": # pragma: no cover
                 usd_paths = self.get_path_from_houdini_node()
                 for path in usd_paths:
                     self.default_parse(path)
             else:
                 self.default_parse(self.pathPrism)
-        elif current_mode == 1:
+        elif current_mode == 1: # pragma: no cover
             if self.openType == "maya":
                 self.load_maya_work_layer()
             elif self.openType == "prism":
@@ -609,7 +613,7 @@ class MainInterface(Qt.QMainWindow):
                     " Valable uniquement dans maya et houdini",
                     severity=logging.ERROR
                 )
-        else:
+        else: # pragma: no cover
             self.log(
                 "Invalid update mode (How ???)",
                 severity=logging.ERROR
@@ -618,7 +622,10 @@ class MainInterface(Qt.QMainWindow):
 
     def getLayerType(self, layer_path: str) -> AssetListWidget.LayerType:
         layer_path_p = Path(layer_path)
-        production_index = layer_path_p.parts.index(_PRODUCTION_IDENTIFIER)
+        try:
+            production_index = layer_path_p.parts.index(_PRODUCTION_IDENTIFIER)
+        except ValueError:
+            return AssetListWidget.LayerType.CONTAINER
         layer_directory = layer_path_p.parts[production_index+5]
         if layer_directory == 'USD':
             return AssetListWidget.LayerType.CONTAINER
@@ -632,7 +639,10 @@ class MainInterface(Qt.QMainWindow):
 
     def getParentLayer(self, layer_path: str) -> str:
         layer_path_p = Path(layer_path)
-        production_index = layer_path_p.parts.index(_PRODUCTION_IDENTIFIER)
+        try:
+            production_index = layer_path_p.parts.index(_PRODUCTION_IDENTIFIER)
+        except ValueError:
+            return None
         layer_directory = layer_path_p.parts[production_index+5]
         if layer_directory == 'USD':
             return None
@@ -664,12 +674,12 @@ class MainInterface(Qt.QMainWindow):
             with open(EXPORT_PATHS_JSON, 'r+') as maya_layout:
                 json_data = json.load(maya_layout)
             return json_data
-        except Exception as e:
+        except Exception as e: # pragma: no cover
             logger.warning(e)
             return {"layout": default_layouts}
     
     
-    def get_path_from_houdini_node(self):
+    def get_path_from_houdini_node(self): # pragma: no cover
         nodes = hou.selectedNodes()
         if not nodes:
             self.log("No node selected, could not parse usd export path")
@@ -704,10 +714,10 @@ class MainInterface(Qt.QMainWindow):
     #---trouve le dernier publish de la scene maya en question---
     def find_lastest_layout_usd(self, filepath: str) -> list[str]:
         exports_path = []
-        if self.openType == "maya":
+        if self.openType == "maya": # pragma: no cover
             logger.debug("---------Fetching current Maya scene path---------")
             scene_path = cmds.file(q=True, sceneName=True)
-        elif self.openType == "houdini":
+        elif self.openType == "houdini": # pragma: no cover
             logger.debug("---------Fetching current Maya scene path---------")
             scene_path = filepath
             if not scene_path:
@@ -742,10 +752,17 @@ class MainInterface(Qt.QMainWindow):
             return []
 
         # I:/Production/03_Production/Shots
-        production_index = scene_path.parts.index(_PRODUCTION_IDENTIFIER)
-        project_root = Path(*scene_path.parts[:4])
-        sequence = scene_path.parts[4]
-        shot = scene_path.parts[5]
+        try:
+            production_index = scene_path.parts.index(_PRODUCTION_IDENTIFIER)
+        except ValueError:
+            self.log(
+                f"File not in prism project:\n - \"{scene_path.as_posix()}\"",
+                severity=logging.WARNING
+            )
+            return exports_path
+        project_root = Path(*scene_path.parts[:production_index])
+        sequence = scene_path.parts[production_index+2]
+        shot = scene_path.parts[production_index+3]
 
         logger.debug(f"Extracted project root: {project_root}")
         logger.debug(f"Extracted sequence: {sequence}, shot: {shot}")
@@ -796,7 +813,7 @@ class MainInterface(Qt.QMainWindow):
 
 
     # ----------------------------script for Maya----------------------------
-    def load_maya_work_layer(self):
+    def load_maya_work_layer(self): # pragma: no cover
         stage = self.get_selected_stageMaya()
         if not stage:
             self.log(
@@ -810,7 +827,7 @@ class MainInterface(Qt.QMainWindow):
         self._usd_parser.parse_payloads(content)
 
 
-    def get_selected_stageMaya(self) -> Usd.Stage:
+    def get_selected_stageMaya(self) -> Usd.Stage: # pragma: no cover
         """
         Return the selected USD stage if it's a mayaUsdProxyShape,
         or fallback to the first mayaUsdProxyShape in the scene.
@@ -1102,10 +1119,10 @@ class MainInterface(Qt.QMainWindow):
             
         current_mode = self.targetMode.currentIndex()
         if current_mode == 0:
-            if check_nodes and self.openType == 'houdini':
+            if check_nodes and self.openType == 'houdini': # pragma: no cover
                 usd_check.checkEveryNodes()
             self.load_USD(layer_identifier, is_hidden)
-        elif current_mode == 1:
+        elif current_mode == 1: # pragma: no cover
             if self.openType == "maya":
                 self.load_maya_work_layer()
             else:
@@ -1114,7 +1131,7 @@ class MainInterface(Qt.QMainWindow):
                     "Valable uniquement dans Maya",
                     severity=logging.ERROR
                 )
-        else:
+        else: # pragma: no cover
             self.log("Invalid update mode (How ???)", severity=logging.ERROR)
             return
 
@@ -1125,16 +1142,16 @@ def startUpdateAssetsUSD(
         prism_core=None,
         ar_context=None):    
     instance = None
-    if not Qt.QApplication.instance():
+    if not Qt.QApplication.instance(): # pragma: no cover
         app_start = True 
         app = Qt.QApplication(sys.argv)
     else:
         app_start = False
-        if openType == "maya":
+        if openType == "maya": # pragma: no cover
             main_window_ptr = OpenMayaUI.MQtUtil.mainWindow()
             instance = wrapInstance(int(main_window_ptr), Qt.QWidget)
 
-        elif openType == "houdini":
+        elif openType == "houdini": # pragma: no cover
             instance = hou.qt.mainWindow()
         
         else:

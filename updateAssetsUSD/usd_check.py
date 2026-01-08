@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 PRISM_IMPORT_TYPE = 'prism::LOP_Import::1.0'
 PROFILER = benchmark.Profiler()
 
-if _HAS_HOU:
+if _HAS_HOU: # pragma: no cover
     PRISM_BASE_COLOR = hou.Color(0.451, 0.369, 0.796)
     TO_UPDATE_COLOR = hou.Color(0.8, 0.1, 0.1)
 

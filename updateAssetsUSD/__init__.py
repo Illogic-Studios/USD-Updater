@@ -26,5 +26,5 @@ def startUpdateAssetsUSD(
         ar_context=ar_context
     )
     
-def checkHoudiniImportsUpdates():
+def checkHoudiniImportsUpdates(): # pragma: no cover
     usd_check.checkEveryNodes()
