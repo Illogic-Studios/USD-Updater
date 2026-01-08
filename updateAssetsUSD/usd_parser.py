@@ -338,7 +338,7 @@ class USDParser():
         
         layer_directory = layer_path.parts[project_offset+5]
         if layer_directory == 'USD':
-            _, new_version_path = usd_api.createEntityUsd(entity)
+            _, new_version_path = usd_api.createEntityUsd(entity, allowAddLayers=False)
         else:
             layer_directory = layer_directory.split('_')
             departement = layer_directory[-2]
