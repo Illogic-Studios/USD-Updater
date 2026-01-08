@@ -1108,12 +1108,18 @@ class MainInterface(Qt.QMainWindow):
                 return
             else:
                 layer_identifier = new_layer
-            if not tab.dependance is None:
-                dependance_layer = self.load_USD(tab.dependance)
-                dependance_index = self.getTabLayer(dependance_layer)
-                dependance_tab = self.QTabLayers.widget(dependance_index)
-                if not dependance_tab is None:
-                    self.run_update(dependance_tab, clear_log=False)
+            dep = tab.dependance
+            child_identifier = layer_identifier
+            while dep is not None:
+                # recursively refresh each old dep in UI
+                current_deps_identifier = dep
+                new_deps_identifier = self.getParentLayer(child_identifier)
+                dep_layer = self.load_USD(current_deps_identifier)
+                dep_index = self.getTabLayer(dep_layer)
+                dep_tab: AssetListWidget = self.QTabLayers.widget(dep_index)
+                dep = dep_tab.dependance
+                self.removeSelectedLayer(dep_layer)
+                self.load_USD(new_deps_identifier)
             if clean_tabs:
                 self.removeSelectedLayer(current_layer)
             

@@ -338,24 +338,26 @@ class USDParser():
         
         layer_directory = layer_path.parts[project_offset+5]
         if layer_directory == 'USD':
-            new_version_path = usd_api.getNewEntityUsdPath(entity)
+            _, new_version_path = usd_api.createEntityUsd(entity)
         else:
             layer_directory = layer_directory.split('_')
             departement = layer_directory[-2]
             sublayer = layer_directory[-1]
-            new_version_path = usd_api.getNewSublayerPath(
-                entity,
-                departement,
-                sublayer
-            )
-            
-        new_version_dir = os.path.dirname(new_version_path)
-        os.makedirs(new_version_dir, exist_ok=True)
+            if sublayer == 'master':
+                new_version_path = usd_api.createDepartmentLayerForEntity(
+                    entity,
+                    departement
+                )
+            else:
+                new_version_path = usd_api.createSublayerLayerForDepartment(
+                    entity,
+                    departement,
+                    sublayer
+                )
         
         layer.Export(new_version_path)
         logger.info(f"New version created at {new_version_path}")
         self.__log_func(f"New version created at {new_version_path}")
-        layer = Sdf.Layer.FindOrOpen(new_version_path)
         return new_version_path
     
 
