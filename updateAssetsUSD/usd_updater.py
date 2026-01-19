@@ -749,6 +749,7 @@ class MainInterface(Qt.QMainWindow):
                         ' node fallback to scenepath'
                     )
                     return []
+            exports_path.append(Path(scene_path).as_posix())
         elif self.openType == "prism":
             logger.debug("---------------Get file from Prism---------------")
             # le chemin que prism va donner 
