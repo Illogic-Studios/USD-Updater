@@ -354,7 +354,6 @@ class USDParser():
                     departement,
                     sublayer
                 )
-        
         layer.Export(new_version_path)
         logger.info(f"New version created at {new_version_path}")
         self.__log_func(f"New version created at {new_version_path}")
@@ -368,7 +367,7 @@ class USDParser():
             self._log("✅ Already updated.")
             return
         if mode == self.UpdateMode.OVERWRITE:
-            self.create_backup(layer)        
+            self.create_backup(layer)
         UsdUtils.ModifyAssetPaths(layer, self._update_filter)
         new_path = None
         if mode == self.UpdateMode.NEW_VERSION:
@@ -378,6 +377,8 @@ class USDParser():
             logger.warning("Invalid update mode.")
             self._log("Invalid update mode. Default to New Version")
             new_path = self.create_new_version(layer, core)
+        if mode == self.UpdateMode.OVERWRITE:
+            layer.Save()
         logger.debug("Update complete.")
         self._log("🎉 Update complete.")
         return new_path

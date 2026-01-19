@@ -384,6 +384,19 @@ class MainInterface(Qt.QMainWindow):
             self.debugbutton.clicked.connect(self.debug)
             self.layoutAdvOptions.addWidget(self.debugbutton)
         
+        saveModeLayout = Qt.QVBoxLayout()
+
+        self.saveModeNew = Qt.QRadioButton(text='Create New Version')
+        self.saveModeNew.setChecked(True)
+        self.saveModeNew.toggled.connect(self.setSaveMode)
+        saveModeLayout.addWidget(self.saveModeNew)
+
+        self.saveModeOverwrite = Qt.QRadioButton(text='Overwrite Version')
+        self.saveModeOverwrite.toggled.connect(self.setSaveMode)
+        saveModeLayout.addWidget(self.saveModeOverwrite)
+        
+        self.layoutAdvOptions.addLayout(saveModeLayout, 50)
+        
         self.parseButton = Qt.QPushButton('Parse Dependencies')
         self.parseButton.clicked.connect(
                 self.reload_dependencies
@@ -547,6 +560,13 @@ class MainInterface(Qt.QMainWindow):
         checkboxes = asset_list.findChildren(Qt.QCheckBox)
         for checkbox in checkboxes:
             checkbox.setChecked(value)
+    
+    
+    def setSaveMode(self):
+        if self.saveModeNew.isChecked():
+            self.update_mode = usd_parser.USDParser.UpdateMode.NEW_VERSION
+        else:
+            self.update_mode = usd_parser.USDParser.UpdateMode.OVERWRITE
     
     
     def browse_file(self):
