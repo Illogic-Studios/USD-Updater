@@ -22,7 +22,7 @@ ENVIRONNEMENT_CONTEXT = os.path.join(os.path.dirname(__file__), "testenv")
 DELEGATE = UsdUtils.CoalescingDiagnosticDelegate()
 
 
-class USDParserTest(unittest.TestCase):
+class USDUpdaterTest(unittest.TestCase):
     
     
     def test_basic_start(self):

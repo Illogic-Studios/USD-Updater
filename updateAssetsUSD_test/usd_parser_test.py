@@ -257,16 +257,14 @@ class USDParserTest(unittest.TestCase):
         ar_rel_path = "parse/v008/common.usda"
         failed_path = "v008/asdasd.usda"
         
-        usdp = usd_parser.USDParser()
-        usdp.dirname = dir_path
-        
+        usdp = usd_parser.USDParser()        
         expected_path = Path(abs_path).resolve()
         expected_failed_path = (Path(dir_path) / failed_path).resolve()
         
-        self.assertEqual(expected_path, usdp._resolve_path(abs_path))
-        self.assertEqual(expected_path, usdp._resolve_path(rel_path))
-        self.assertEqual(expected_path, usdp._resolve_path(ar_rel_path))
-        self.assertEqual(expected_failed_path, usdp._resolve_path(failed_path))
+        self.assertEqual(expected_path, usdp._resolve_path(abs_path, dir_path))
+        self.assertEqual(expected_path, usdp._resolve_path(rel_path, dir_path))
+        self.assertEqual(expected_path, usdp._resolve_path(ar_rel_path, dir_path))
+        self.assertEqual(expected_failed_path, usdp._resolve_path(failed_path, dir_path))
             
 
 if __name__ == '__main__':
