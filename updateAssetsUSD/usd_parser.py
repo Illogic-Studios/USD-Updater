@@ -59,29 +59,29 @@ class USDParser():
                 
     # ---------------------------------Utils---------------------------------
     
-    def _resolve_path(self, assetPathProcessed: str) -> Path:
-            asset_path = Path(assetPathProcessed)
+    def _resolve_path(self, assetPathProcessed: str, dirname: str) -> Path:
+        asset_path = Path(assetPathProcessed)
 
-            # already resolved
-            if asset_path.is_absolute():
-                return asset_path.resolve()
+        # already resolved
+        if asset_path.is_absolute():
+            return asset_path.resolve()
 
-            # solve relative to USD file
-            relative_to_layer_path = self.dirname / asset_path
-            if relative_to_layer_path.exists():
-                return relative_to_layer_path.resolve()
-
-            # solve relative to Asset Resolver context
-            try:
-                ar_resolver = Ar.GetResolver()
-                resolved_path = ar_resolver.Resolve(assetPathProcessed)
-                resolved_path = resolved_path.GetPathString()
-                if os.path.exists(resolved_path):
-                    return Path(resolved_path).resolve()
-            except Exception as e: # pragma: no cover
-                logger.warning(e)
-
+        # solve relative to USD file
+        relative_to_layer_path = dirname / asset_path
+        if relative_to_layer_path.exists():
             return relative_to_layer_path.resolve()
+
+        # solve relative to Asset Resolver context
+        try:
+            ar_resolver = Ar.GetResolver()
+            resolved_path = ar_resolver.Resolve(assetPathProcessed)
+            resolved_path = resolved_path.GetPathString()
+            if os.path.exists(resolved_path):
+                return Path(resolved_path).resolve()
+        except Exception as e: # pragma: no cover
+            logger.warning(e)
+
+        return relative_to_layer_path.resolve()
             
     
     def _add_item_list_once(self, item: at.AssetItem):
@@ -106,7 +106,7 @@ class USDParser():
             return assetPathProcessed
         
         # resolve path from context or layer if needed
-        resolved_path = self._resolve_path(assetPathProcessed)
+        resolved_path = self._resolve_path(assetPathProcessed, self.dirname)
         if len(resolved_path.parts) < 2: # pragma: no cover
             logger.debug(' - path is too short')
             return assetPathProcessed
@@ -243,6 +243,32 @@ class USDParser():
                 logger.debug('Start normal parsing')
                 self._parse_dependencies(layer)
             self.dirname = ''    
+
+
+    def get_last_version(self, usd_path: str):
+        """Return last version available of a given USD layer path.
+
+        Args:
+            usd_path (str): USD layer path.
+        """        
+        resolved_path = self._resolve_path(usd_path, os.path.dirname(usd_path))
+        extension = resolved_path.suffix
+        if not extension in ['.usdc', '.usda', ".usd"]:
+            return
+        glob_pattern = (
+            re
+            .sub(r'v\d{2,9}', 'v*', resolved_path.as_posix())
+            .replace(extension, '.usd*')
+        )
+        glob_versions = glob.glob(glob_pattern)
+        versions = []
+        for version in glob_versions:
+            if not '.bak' in version:
+                versions.append(version)
+        versions.sort()
+        if not len(versions):
+            return
+        return versions[-1]
 
 
     # -------------------------------Update USD-------------------------------

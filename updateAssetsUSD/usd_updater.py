@@ -252,6 +252,10 @@ class MainInterface(Qt.QMainWindow):
         self._layers: list[Sdf.Layer] = []
         self._assetsToUpdate: dict[list[AssetItem]] = {}
         
+        # opentype specific informations
+        if self.openType == 'houdini':
+            self._houdini_nodes = []
+        
         # parser informations
         self.update_mode = usd_parser.USDParser.UpdateMode.NEW_VERSION
         self.check_update_only = check_update_only
@@ -704,7 +708,7 @@ class MainInterface(Qt.QMainWindow):
         if not nodes:
             self.log("No node selected, could not parse usd export path")
             return []
-        node: hou.LopNode = nodes[0]
+        self._houdini_nodes = nodes
         usd_paths = []
         for node in nodes:
             if node.type().name() == 'prism::LOP_Import::1.0':
@@ -729,6 +733,27 @@ class MainInterface(Qt.QMainWindow):
                     severity=logging.WARNING
                 )
         return usd_paths        
+
+
+    def update_houdini_node_paths(self):
+        """
+        Update selected Houdini nodes path
+        if a newer version is available.
+        """
+        nodes = self._houdini_nodes
+        for node in nodes:
+            if node.type().name() == 'prism::LOP_Import::1.0':
+                try:
+                    source_parm: hou.Parm = node.parm('filepath')
+                    source_path = source_parm.eval()
+                    last_version = self._usd_parser.get_last_version(source_path)
+                    if last_version is not None:
+                        source_parm.set(last_version)
+                except Exception as e:
+                    logger.warning(
+                        'Could not find file path in'
+                        f' parm of node {node.name()}'
+                    )
 
 
     #---trouve le dernier publish de la scene maya en question---
@@ -1086,6 +1111,7 @@ class MainInterface(Qt.QMainWindow):
         current_mode = self.targetMode.currentIndex()
         if current_mode == 0:
             if self.openType == 'houdini':
+                self.update_houdini_node_paths()
                 usd_check.checkEveryNodes()
             
     
@@ -1147,6 +1173,7 @@ class MainInterface(Qt.QMainWindow):
         current_mode = self.targetMode.currentIndex()
         if current_mode == 0:
             if check_nodes and self.openType == 'houdini': # pragma: no cover
+                self.update_houdini_node_paths()
                 usd_check.checkEveryNodes()
             self.load_USD(layer_identifier, is_hidden)
         elif current_mode == 1: # pragma: no cover
