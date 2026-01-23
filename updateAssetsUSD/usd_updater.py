@@ -781,7 +781,7 @@ class MainInterface(Qt.QMainWindow):
                 severity=logging.WARNING
             )
             return exports_path
-        project_root = Path(*scene_path.parts[:production_index])
+        project_root = Path(*scene_path.parts[:production_index+2])
         sequence = scene_path.parts[production_index+2]
         shot = scene_path.parts[production_index+3]
 
@@ -792,7 +792,7 @@ class MainInterface(Qt.QMainWindow):
         exports_patterns = self.load_exports_names()
         
         for key in exports_patterns:
-            logger.debug("Start parsing {key} exports")
+            logger.debug(f"Start parsing {key} exports")
             export_names = exports_patterns[key]
             for export_name in export_names:
                 logger.debug(f" - export name = {export_name}")
