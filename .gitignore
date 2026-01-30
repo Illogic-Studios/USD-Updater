@@ -8,3 +8,5 @@ backup
 stats.prof
 logs
 updateAssetsUSD_test/Prod_test_ENV
+benchmark_parser.txt
+quick*
