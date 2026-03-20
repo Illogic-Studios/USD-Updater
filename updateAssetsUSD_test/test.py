@@ -13,14 +13,14 @@ layer_path = (
 app = UD.usd_updater.Qt.QApplication.instance()
 if not app:
     app = UD.usd_updater.Qt.QApplication()
-    
+
 main_window = UD.usd_updater.MainInterface(
-    openType='prism',
+    openType="prism",
     pathPrism=layer_path,
     pcore=core,
     ar_context=None,
     check_update_only=False,
-    parent=None
+    parent=None,
 )
 main_window.show()
 app.exec()
