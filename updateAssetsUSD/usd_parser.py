@@ -234,8 +234,15 @@ class USDParser:
             return assetPathProcessed
 
         # check if the current asset is the latest
-        current_version = int(current_match.group(0)[1:])
-        int_latest_version = int(latest_version[0][1:])
+        try:
+            current_version = int(current_match.group(0)[1:])
+            int_latest_version = int(latest_version[0][1:])
+        except ValueError:
+            self._log(f"❌ Skipped (invalid or unresolvable): {assetPathProcessed}")
+            logger.debug(" - skipped (invalid or unresolvable)")
+            self._add_item_list_abs(item)
+            return assetPathProcessed
+            
         if int_latest_version == current_version:
             logger.debug(" - Already updated")
             self._log(f"🟰 Skipping up-to-date: {assetPathProcessed}")
